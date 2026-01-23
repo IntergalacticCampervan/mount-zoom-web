@@ -39,7 +39,8 @@ import MediaPanel from "../components/MediaPanel.astro";
     <script type="module">
       const API_BASE = "https://mountzoom.hylton.co.nz";
       const LAST_SEEN_ENDPOINT = `${API_BASE}/api/last-seen`;
-      const STREAM_URL = `${API_BASE}/`;
+      const STREAM_URL = `${API_BASE}/?action=stream`;
+      const STREAM_PROBE_URL = `${API_BASE}/?action=stream`;
 
       const POLL_INTERVAL_MS = 30000;
       const STREAM_PROBE_MS = 10000;
@@ -95,6 +96,21 @@ import MediaPanel from "../components/MediaPanel.astro";
         streamImage.classList.toggle("hidden", !online);
       };
 
+      const formatTimestamp = (isoValue) => {
+        if (typeof isoValue !== "string") return "--";
+        const date = new Date(isoValue);
+        if (Number.isNaN(date.getTime())) return isoValue;
+        return new Intl.DateTimeFormat("en-NZ", {
+          weekday: "short",
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZoneName: "short",
+        }).format(date);
+      };
+
       const updateLastSeenUI = (data) => {
         if (!data) return;
         locationLabel.textContent = data.locationLabel ?? "Unknown";
@@ -102,13 +118,14 @@ import MediaPanel from "../components/MediaPanel.astro";
           typeof data.ageMinutes === "number"
             ? Math.round(data.ageMinutes)
             : "--";
-        lastSeenTime.textContent = data.timestamp ?? "--";
+        lastSeenTime.textContent = formatTimestamp(data.timestamp);
+        lastSeenTime.dataset.raw = data.timestamp ?? "";
         if (isValidNumber(data.lat) && isValidNumber(data.lon)) {
           coords.textContent = `${data.lat.toFixed(5)}, ${data.lon.toFixed(5)}`;
           updateMap(data.lat, data.lon);
         }
         if (data.imageUrl) {
-          fallbackImage.src = `${API_BASE}${data.imageUrl}`;
+          fallbackImage.src = `${API_BASE}${data.imageUrl}?t=${Date.now()}`;
         }
       };
 
@@ -171,7 +188,7 @@ import MediaPanel from "../components/MediaPanel.astro";
 
       const probeStream = async () => {
         try {
-          const response = await fetch(STREAM_URL, {
+          const response = await fetch(STREAM_PROBE_URL, {
             method: "HEAD",
             cache: "no-store",
           });
