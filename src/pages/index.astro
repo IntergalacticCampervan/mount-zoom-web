@@ -39,11 +39,15 @@ import MediaPanel from "../components/MediaPanel.astro";
     <script type="module">
       const API_BASE = "https://mountzoom.hylton.co.nz";
       const LAST_SEEN_ENDPOINT = `${API_BASE}/api/last-seen`;
-      const STREAM_URL = `${API_BASE}/?action=stream`;
-      const STREAM_PROBE_URL = `${API_BASE}/?action=stream`;
+      const GPS_ENDPOINT = `${API_BASE}/gps/location`;
+      const OPENWEATHER_API_KEY = "299fbf95adcf65d403987fbec5b80a23";
+      const STREAM_URL = new URL("/", API_BASE);
+      STREAM_URL.searchParams.set("action", "stream");
 
       const POLL_INTERVAL_MS = 30000;
       const STREAM_PROBE_MS = 10000;
+      const GPS_POLL_MS = 10000;
+      const WEATHER_POLL_MS = 15 * 60 * 1000;
       const RECONNECT_MESSAGES = [
         "Reconnecting to stream...",
         "Checking tunnel status...",
@@ -64,12 +68,19 @@ import MediaPanel from "../components/MediaPanel.astro";
       const staleIndicator = document.getElementById("stale-indicator");
       const reconnectBtn = document.getElementById("reconnect-btn");
       const reconnectMessage = document.getElementById("reconnect-message");
+      const weatherLocation = document.getElementById("weather-location");
+      const weatherTemp = document.getElementById("weather-temp");
+      const weatherDesc = document.getElementById("weather-desc");
+      const weatherAlt = document.getElementById("weather-alt");
 
       let lastSeenData = null;
+      let latestGps = null;
       let isOnline = true;
       let mapInstance = null;
       let mapMarker = null;
       let messageIndex = 0;
+      let streamHealthy = false;
+      let gpsHealthy = false;
 
       const isValidNumber = (value) =>
         typeof value === "number" && Number.isFinite(value);
@@ -91,9 +102,13 @@ import MediaPanel from "../components/MediaPanel.astro";
           "shadow-[0_0_8px_rgba(251,191,36,0.7)]",
           !online
         );
-        offlineBanner.classList.toggle("hidden", online);
-        fallbackImage.classList.toggle("hidden", online);
-        streamImage.classList.toggle("hidden", !online);
+        offlineBanner.classList.toggle("hidden", streamHealthy);
+        fallbackImage.classList.toggle("hidden", streamHealthy);
+        streamImage.classList.toggle("hidden", !streamHealthy);
+      };
+
+      const updateOnlineStatus = () => {
+        setStatus(Boolean(streamHealthy || gpsHealthy));
       };
 
       const formatTimestamp = (isoValue) => {
@@ -129,6 +144,53 @@ import MediaPanel from "../components/MediaPanel.astro";
         }
       };
 
+      const updateWeatherUI = (payload) => {
+        if (!payload) return;
+        const name = payload.name || "MountZoom";
+        const temp =
+          typeof payload.main?.temp === "number"
+            ? `${Math.round(payload.main.temp)}°C`
+            : "--";
+        const desc =
+          Array.isArray(payload.weather) && payload.weather[0]?.description
+            ? payload.weather[0].description
+            : "--";
+        weatherLocation.textContent = name;
+        weatherTemp.textContent = temp;
+        weatherDesc.textContent = desc;
+        if (weatherAlt) {
+          weatherAlt.textContent =
+            typeof payload.main?.feels_like === "number"
+              ? `Feels ${Math.round(payload.main.feels_like)}°C`
+              : "";
+        }
+      };
+
+      const fetchWeather = async (lat, lon) => {
+        if (!OPENWEATHER_API_KEY || OPENWEATHER_API_KEY === "REPLACE_ME") {
+          return;
+        }
+        try {
+          const url = new URL(
+            "https://api.openweathermap.org/data/2.5/weather"
+          );
+          url.searchParams.set("lat", lat.toString());
+          url.searchParams.set("lon", lon.toString());
+          url.searchParams.set("units", "metric");
+          url.searchParams.set("appid", OPENWEATHER_API_KEY);
+          const response = await fetch(url.toString(), { cache: "no-store" });
+          if (!response.ok) throw new Error("Weather fetch failed");
+          const contentType = response.headers.get("content-type") ?? "";
+          if (!contentType.includes("application/json")) {
+            throw new Error("Unexpected weather content type");
+          }
+          const data = await response.json();
+          updateWeatherUI(data);
+        } catch (error) {
+          // Keep existing weather UI if refresh fails.
+        }
+      };
+
       const updateMap = (lat, lon) => {
         if (!mapInstance) return;
         const position = [lat, lon];
@@ -159,12 +221,42 @@ import MediaPanel from "../components/MediaPanel.astro";
         }
       };
 
+      const fetchGps = async () => {
+        try {
+          const response = await fetch(GPS_ENDPOINT, { cache: "no-store" });
+          if (!response.ok) throw new Error("GPS unavailable");
+          const contentType = response.headers.get("content-type") ?? "";
+          if (!contentType.includes("application/json")) {
+            throw new Error("Unexpected GPS content type");
+          }
+          const data = await response.json();
+          if (!isValidNumber(data.lat) || !isValidNumber(data.lon)) {
+            throw new Error("Invalid GPS data");
+          }
+          latestGps = data;
+          gpsHealthy = true;
+          updateOnlineStatus();
+          updateMap(data.lat, data.lon);
+          fetchWeather(data.lat, data.lon);
+        } catch (error) {
+          gpsHealthy = false;
+          updateOnlineStatus();
+          if (!streamHealthy && lastSeenData) {
+            updateLastSeenUI(lastSeenData);
+          }
+        }
+      };
+
       const fetchLastSeen = async () => {
         try {
           const response = await fetch(LAST_SEEN_ENDPOINT, {
             cache: "no-store",
           });
           if (!response.ok) throw new Error("Bad response");
+          const contentType = response.headers.get("content-type") ?? "";
+          if (!contentType.includes("application/json")) {
+            throw new Error("Unexpected content type");
+          }
           const data = await response.json();
           if (
             !data ||
@@ -177,44 +269,39 @@ import MediaPanel from "../components/MediaPanel.astro";
           }
           lastSeenData = data;
           staleIndicator.classList.add("hidden");
-          updateLastSeenUI(data);
+          if (!streamHealthy && !gpsHealthy) {
+            updateLastSeenUI(data);
+          }
         } catch (error) {
           staleIndicator.classList.remove("hidden");
           if (lastSeenData) {
-            updateLastSeenUI(lastSeenData);
+            if (!streamHealthy && !gpsHealthy) {
+              updateLastSeenUI(lastSeenData);
+            }
           }
         }
       };
 
-      const probeStream = async () => {
-        try {
-          const response = await fetch(STREAM_PROBE_URL, {
-            method: "HEAD",
-            cache: "no-store",
-          });
-          if (!response.ok) throw new Error("Stream offline");
-          setStatus(true);
-        } catch (error) {
-          setStatus(false);
-        }
-      };
-
       const loadStream = () => {
-        streamImage.src = `${STREAM_URL}?t=${Date.now()}`;
+        const url = new URL(STREAM_URL);
+        url.searchParams.set("t", Date.now().toString());
+        streamImage.src = url.toString();
       };
 
       streamImage.addEventListener("error", () => {
-        setStatus(false);
+        streamHealthy = false;
+        updateOnlineStatus();
       });
 
       streamImage.addEventListener("load", () => {
-        setStatus(true);
+        streamHealthy = true;
+        updateOnlineStatus();
       });
 
       reconnectBtn.addEventListener("click", async () => {
         await fetchLastSeen();
         loadStream();
-        await probeStream();
+        await fetchGps();
       });
 
       const rotateMessage = () => {
@@ -224,11 +311,16 @@ import MediaPanel from "../components/MediaPanel.astro";
 
       initMap();
       fetchLastSeen();
+      fetchGps();
       loadStream();
-      probeStream();
 
       setInterval(fetchLastSeen, POLL_INTERVAL_MS);
-      setInterval(probeStream, STREAM_PROBE_MS);
+      setInterval(fetchGps, GPS_POLL_MS);
+      setInterval(() => {
+        if (latestGps && isValidNumber(latestGps.lat)) {
+          fetchWeather(latestGps.lat, latestGps.lon);
+        }
+      }, WEATHER_POLL_MS);
       setInterval(rotateMessage, 5000);
     </script>
   </body>
