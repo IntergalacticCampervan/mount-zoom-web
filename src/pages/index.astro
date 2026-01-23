@@ -24,7 +24,7 @@ import MediaPanel from "../components/MediaPanel.astro";
   <body class="min-h-screen bg-slate-950 text-slate-100">
     <main class="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pb-10 pt-6 sm:px-6 lg:px-10">
       <section class="grid gap-6 lg:grid-cols-[1.35fr_0.9fr]">
-        <MediaPanel title="MountZoom Hybrid Stream" />
+        <MediaPanel title="The Lord of the Streams" />
         <MapPanel />
       </section>
 
@@ -68,6 +68,9 @@ import MediaPanel from "../components/MediaPanel.astro";
       const staleIndicator = document.getElementById("stale-indicator");
       const reconnectBtn = document.getElementById("reconnect-btn");
       const reconnectMessage = document.getElementById("reconnect-message");
+      const lastSightingPill = document.getElementById("last-sighting-pill");
+      const mediaContainer = document.getElementById("media-container");
+      const mapContainer = document.getElementById("map-container");
       const weatherLocation = document.getElementById("weather-location");
       const weatherTemp = document.getElementById("weather-temp");
       const weatherDesc = document.getElementById("weather-desc");
@@ -105,6 +108,7 @@ import MediaPanel from "../components/MediaPanel.astro";
         offlineBanner.classList.toggle("hidden", streamHealthy);
         fallbackImage.classList.toggle("hidden", streamHealthy);
         streamImage.classList.toggle("hidden", !streamHealthy);
+        lastSightingPill.classList.toggle("hidden", streamHealthy);
       };
 
       const updateOnlineStatus = () => {
@@ -219,6 +223,7 @@ import MediaPanel from "../components/MediaPanel.astro";
         if (lastSeenData && isValidNumber(lastSeenData.lat)) {
           updateMap(lastSeenData.lat, lastSeenData.lon);
         }
+
       };
 
       const fetchGps = async () => {
@@ -297,6 +302,58 @@ import MediaPanel from "../components/MediaPanel.astro";
         streamHealthy = true;
         updateOnlineStatus();
       });
+
+      const requestFullscreen = (element) => {
+        if (!element || !element.requestFullscreen) return;
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+          return;
+        }
+        element.requestFullscreen();
+      };
+
+      const enableTapFullscreen = (element) => {
+        if (!element) return;
+        let tapStart = null;
+        let tapMoved = false;
+        const activePointers = new Set();
+
+        element.addEventListener("pointerdown", (event) => {
+          activePointers.add(event.pointerId);
+          tapMoved = false;
+          tapStart = { x: event.clientX, y: event.clientY };
+        });
+
+        element.addEventListener("pointermove", (event) => {
+          if (!tapStart) return;
+          const dx = Math.abs(event.clientX - tapStart.x);
+          const dy = Math.abs(event.clientY - tapStart.y);
+          if (dx > 8 || dy > 8) {
+            tapMoved = true;
+          }
+        });
+
+        element.addEventListener("pointerup", () => {
+          if (activePointers.size > 1) {
+            activePointers.clear();
+            tapStart = null;
+            return;
+          }
+          activePointers.clear();
+          if (!tapMoved && tapStart) {
+            requestFullscreen(element);
+          }
+          tapStart = null;
+        });
+
+        element.addEventListener("pointercancel", () => {
+          activePointers.clear();
+          tapStart = null;
+        });
+      };
+
+      enableTapFullscreen(mediaContainer);
+      enableTapFullscreen(mapContainer);
 
       reconnectBtn.addEventListener("click", async () => {
         await fetchLastSeen();

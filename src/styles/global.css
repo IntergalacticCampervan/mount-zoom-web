@@ -2,12 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: "Ringbearer";
+  src: url("/fonts/Ringbearer.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+.font-ringbearer {
+  font-family: "Ringbearer", "Sora", "Segoe UI", sans-serif;
+}
+
 @layer base {
   body {
     @apply bg-slate-950 text-slate-100 antialiased;
+    background-image:
+      linear-gradient(rgba(15, 23, 42, 0.46), rgba(2, 6, 23, 0.62)),
+      url("/middle-earth-bg.jpg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
   }
 }
 
 .leaflet-control-attribution {
   display: none;
+}
+
+#media-container:fullscreen,
+#map-container:fullscreen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(
+      circle at center,
+      rgba(15, 23, 42, 0.6),
+      rgba(2, 6, 23, 0.95)
+    ),
+    #020617;
+}
+
+#media-container:fullscreen img,
+#map-container:fullscreen #map {
+  width: min(100vw, 1100px);
+  height: min(100vh, 700px);
 }
