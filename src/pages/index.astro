@@ -65,6 +65,10 @@ import MediaPanel from "../components/MediaPanel.astro";
       const staleIndicator = document.getElementById("stale-indicator");
       const reconnectBtn = document.getElementById("reconnect-btn");
       const reconnectMessage = document.getElementById("reconnect-message");
+      const reconnectRow = document.getElementById("reconnect-row");
+      const reconnectMessageWrap = document.getElementById(
+        "reconnect-message-wrap"
+      );
       const lastSightingPill = document.getElementById("last-sighting-pill");
       const mediaContainer = document.getElementById("media-container");
       const mapContainer = document.getElementById("map-container");
@@ -106,6 +110,8 @@ import MediaPanel from "../components/MediaPanel.astro";
         fallbackImage.classList.toggle("hidden", streamHealthy);
         streamImage.classList.toggle("hidden", !streamHealthy);
         lastSightingPill.classList.toggle("hidden", streamHealthy);
+        reconnectRow.classList.toggle("hidden", streamHealthy);
+        reconnectMessageWrap.classList.toggle("hidden", streamHealthy);
       };
 
       const updateOnlineStatus = () => {
@@ -298,52 +304,68 @@ import MediaPanel from "../components/MediaPanel.astro";
         updateOnlineStatus();
       });
 
+      const getFullscreenElement = () =>
+        document.fullscreenElement || document.webkitFullscreenElement;
+
       const requestFullscreen = (element) => {
-        if (!element || !element.requestFullscreen) return;
-        if (document.fullscreenElement) {
-          document.exitFullscreen();
+        if (!element) return;
+        const request =
+          element.requestFullscreen || element.webkitRequestFullscreen;
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if (!request) return;
+        if (getFullscreenElement()) {
+          exit?.call(document);
           return;
         }
-        element.requestFullscreen();
+        request.call(element);
       };
 
       const enableTapFullscreen = (element) => {
         if (!element) return;
-        let tapStart = null;
-        let tapMoved = false;
-        const activePointers = new Set();
+        let touchStart = null;
+        let touchMoved = false;
+        let touchCount = 0;
 
-        element.addEventListener("pointerdown", (event) => {
-          activePointers.add(event.pointerId);
-          tapMoved = false;
-          tapStart = { x: event.clientX, y: event.clientY };
+        element.addEventListener("touchstart", (event) => {
+          touchCount = event.touches.length;
+          if (touchCount !== 1) return;
+          touchMoved = false;
+          touchStart = {
+            x: event.touches[0].clientX,
+            y: event.touches[0].clientY,
+          };
         });
 
-        element.addEventListener("pointermove", (event) => {
-          if (!tapStart) return;
-          const dx = Math.abs(event.clientX - tapStart.x);
-          const dy = Math.abs(event.clientY - tapStart.y);
+        element.addEventListener("touchmove", (event) => {
+          if (!touchStart || event.touches.length !== 1) return;
+          const dx = Math.abs(event.touches[0].clientX - touchStart.x);
+          const dy = Math.abs(event.touches[0].clientY - touchStart.y);
           if (dx > 8 || dy > 8) {
-            tapMoved = true;
+            touchMoved = true;
           }
         });
 
-        element.addEventListener("pointerup", () => {
-          if (activePointers.size > 1) {
-            activePointers.clear();
-            tapStart = null;
+        element.addEventListener("touchend", () => {
+          if (touchCount !== 1) {
+            touchStart = null;
             return;
           }
-          activePointers.clear();
-          if (!tapMoved && tapStart) {
+          if (!touchMoved && touchStart) {
             requestFullscreen(element);
           }
-          tapStart = null;
+          touchStart = null;
+          touchMoved = false;
+          touchCount = 0;
         });
 
-        element.addEventListener("pointercancel", () => {
-          activePointers.clear();
-          tapStart = null;
+        element.addEventListener("touchcancel", () => {
+          touchStart = null;
+          touchMoved = false;
+          touchCount = 0;
+        });
+
+        element.addEventListener("click", () => {
+          requestFullscreen(element);
         });
       };
 
