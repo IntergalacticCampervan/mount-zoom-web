@@ -345,27 +345,43 @@ import MediaPanel from "../components/MediaPanel.astro";
       const getFullscreenElement = () =>
         document.fullscreenElement || document.webkitFullscreenElement;
 
+      const supportsNativeFullscreen = (element) =>
+        Boolean(
+          element?.requestFullscreen ||
+            element?.webkitRequestFullscreen ||
+            document.fullscreenEnabled ||
+            document.webkitFullscreenEnabled
+        );
+
+      const fullscreenState = {
+        element: null,
+        mode: null,
+      };
+
       const setPseudoFullscreen = (element, enabled) => {
         if (!element) return;
         element.classList.toggle("pseudo-fullscreen", enabled);
         document.body.classList.toggle("no-scroll", enabled);
+        fullscreenState.element = enabled ? element : null;
+        fullscreenState.mode = enabled ? "pseudo" : null;
+        if (element === mapContainer && mapInstance) {
+          setTimeout(() => {
+            mapInstance.invalidateSize();
+          }, 200);
+        }
       };
 
-      const requestFullscreen = (element) => {
+      const enterFullscreen = (element) => {
         if (!element) return;
-        if (element.classList.contains("pseudo-fullscreen")) {
-          setPseudoFullscreen(element, false);
-          return;
+        if (fullscreenState.element && fullscreenState.element !== element) {
+          exitFullscreen();
         }
-        const request =
-          element.requestFullscreen || element.webkitRequestFullscreen;
-        const exit = document.exitFullscreen || document.webkitExitFullscreen;
-        if (getFullscreenElement()) {
-          exit?.call(document);
-          return;
-        }
-        if (request) {
-          try {
+        if (supportsNativeFullscreen(element)) {
+          const request =
+            element.requestFullscreen || element.webkitRequestFullscreen;
+          if (request) {
+            fullscreenState.element = element;
+            fullscreenState.mode = "native";
             const result = request.call(element);
             if (result?.catch) {
               result.catch(() => {
@@ -373,13 +389,43 @@ import MediaPanel from "../components/MediaPanel.astro";
               });
             }
             return;
-          } catch (error) {
-            setPseudoFullscreen(element, true);
-            return;
           }
         }
         setPseudoFullscreen(element, true);
       };
+
+      const exitFullscreen = () => {
+        if (fullscreenState.mode === "pseudo") {
+          setPseudoFullscreen(fullscreenState.element, false);
+          return;
+        }
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if (getFullscreenElement() && exit) {
+          exit.call(document);
+        }
+        fullscreenState.element = null;
+        fullscreenState.mode = null;
+      };
+
+      const toggleFullscreen = (element) => {
+        if (fullscreenState.element === element) {
+          exitFullscreen();
+        } else {
+          enterFullscreen(element);
+        }
+      };
+
+      document.addEventListener("fullscreenchange", () => {
+        if (!getFullscreenElement()) {
+          fullscreenState.element = null;
+          fullscreenState.mode = null;
+        }
+        if (mapInstance) {
+          setTimeout(() => {
+            mapInstance.invalidateSize();
+          }, 150);
+        }
+      });
 
       const enableTapFullscreen = (element) => {
         if (!element) return;
@@ -406,13 +452,13 @@ import MediaPanel from "../components/MediaPanel.astro";
           }
         });
 
-        element.addEventListener("touchend", () => {
-          if (touchCount !== 1) {
+        element.addEventListener("touchend", (event) => {
+          if (touchCount !== 1 || event.changedTouches.length !== 1) {
             touchStart = null;
             return;
           }
           if (!touchMoved && touchStart) {
-            requestFullscreen(element);
+            toggleFullscreen(element);
           }
           touchStart = null;
           touchMoved = false;
@@ -426,7 +472,7 @@ import MediaPanel from "../components/MediaPanel.astro";
         });
 
         element.addEventListener("click", () => {
-          requestFullscreen(element);
+          toggleFullscreen(element);
         });
       };
 

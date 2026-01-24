@@ -32,15 +32,21 @@
 
 body.no-scroll {
   overflow: hidden;
+  position: fixed;
+  width: 100%;
 }
 
 #media-container.pseudo-fullscreen,
 #map-container.pseudo-fullscreen {
   position: fixed;
   inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  min-height: 100svh;
   z-index: 60;
   border-radius: 0;
   margin: 0;
+  overflow: hidden;
   background: radial-gradient(
       circle at center,
       rgba(15, 23, 42, 0.6),
