@@ -41,7 +41,7 @@ import MediaPanel from "../components/MediaPanel.astro";
       const LAST_SEEN_ENDPOINT = `${API_BASE}/api/last-seen`;
       const GPS_ENDPOINT = `${API_BASE}/gps/location`;
       const OPENWEATHER_API_KEY = "299fbf95adcf65d403987fbec5b80a23";
-      const STREAM_URL = new URL("/", API_BASE);
+      const STREAM_URL = new URL("/stream", API_BASE);
       STREAM_URL.searchParams.set("action", "stream");
 
       const POLL_INTERVAL_MS = 30000;
