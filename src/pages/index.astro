@@ -37,12 +37,9 @@ import MediaPanel from "../components/MediaPanel.astro";
       crossorigin=""
     ></script>
     <script type="module">
-      const API_BASE = "https://mountzoom.hylton.co.nz";
-      const LAST_SEEN_ENDPOINT = `${API_BASE}/api/last-seen`;
-      const GPS_ENDPOINT = `${API_BASE}/gps/location`;
+      const LAST_SEEN_ENDPOINT = "/api/last-seen";
+      const GPS_ENDPOINT = "/gps/location";
       const OPENWEATHER_API_KEY = "299fbf95adcf65d403987fbec5b80a23";
-      const STREAM_URL = new URL("/", API_BASE);
-      STREAM_URL.searchParams.set("action", "stream");
 
       const POLL_INTERVAL_MS = 30000;
       const STREAM_PROBE_MS = 10000;
@@ -144,7 +141,7 @@ import MediaPanel from "../components/MediaPanel.astro";
           updateMap(data.lat, data.lon);
         }
         if (data.imageUrl) {
-          fallbackImage.src = `${API_BASE}${data.imageUrl}?t=${Date.now()}`;
+          fallbackImage.src = `/api/last-seen/image?t=${Date.now()}`;
         }
       };
 
@@ -288,9 +285,7 @@ import MediaPanel from "../components/MediaPanel.astro";
       };
 
       const loadStream = () => {
-        const url = new URL(STREAM_URL);
-        url.searchParams.set("t", Date.now().toString());
-        streamImage.src = url.toString();
+        streamImage.src = `/stream?t=${Date.now()}`;
       };
 
       streamImage.addEventListener("error", () => {
