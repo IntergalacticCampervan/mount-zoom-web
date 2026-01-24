@@ -86,6 +86,7 @@ import MediaPanel from "../components/MediaPanel.astro";
       let messageIndex = 0;
       let streamHealthy = false;
       let gpsHealthy = false;
+      const MAP_ICON_SCALE = 1.4;
 
       const isValidNumber = (value) =>
         typeof value === "number" && Number.isFinite(value);
@@ -214,11 +215,20 @@ import MediaPanel from "../components/MediaPanel.astro";
 
       const initMap = () => {
         if (!window.L || mapInstance) return;
-        mapIcon = window.L.icon({
-          iconUrl: "/camper-icon.png",
-          iconSize: [34, 34],
-          iconAnchor: [17, 34],
-        });
+        const iconImage = new Image();
+        iconImage.src = "/camper-icon.png";
+        iconImage.onload = () => {
+          const width = Math.round(iconImage.naturalWidth * MAP_ICON_SCALE);
+          const height = Math.round(iconImage.naturalHeight * MAP_ICON_SCALE);
+          mapIcon = window.L.icon({
+            iconUrl: "/camper-icon.png",
+            iconSize: [width, height],
+            iconAnchor: [Math.round(width / 2), height],
+          });
+          if (mapMarker) {
+            mapMarker.setIcon(mapIcon);
+          }
+        };
         mapInstance = window.L.map("map", {
           zoomControl: false,
           attributionControl: false,
