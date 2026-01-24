@@ -82,6 +82,7 @@ import MediaPanel from "../components/MediaPanel.astro";
       let isOnline = true;
       let mapInstance = null;
       let mapMarker = null;
+      let mapIcon = null;
       let messageIndex = 0;
       let streamHealthy = false;
       let gpsHealthy = false;
@@ -205,12 +206,19 @@ import MediaPanel from "../components/MediaPanel.astro";
         if (mapMarker) {
           mapMarker.setLatLng(position);
         } else {
-          mapMarker = window.L.marker(position).addTo(mapInstance);
+          mapMarker = window.L.marker(position, {
+            icon: mapIcon || undefined,
+          }).addTo(mapInstance);
         }
       };
 
       const initMap = () => {
         if (!window.L || mapInstance) return;
+        mapIcon = window.L.icon({
+          iconUrl: "/camper-icon.png",
+          iconSize: [34, 34],
+          iconAnchor: [17, 34],
+        });
         mapInstance = window.L.map("map", {
           zoomControl: false,
           attributionControl: false,
@@ -307,17 +315,40 @@ import MediaPanel from "../components/MediaPanel.astro";
       const getFullscreenElement = () =>
         document.fullscreenElement || document.webkitFullscreenElement;
 
+      const setPseudoFullscreen = (element, enabled) => {
+        if (!element) return;
+        element.classList.toggle("pseudo-fullscreen", enabled);
+        document.body.classList.toggle("no-scroll", enabled);
+      };
+
       const requestFullscreen = (element) => {
         if (!element) return;
+        if (element.classList.contains("pseudo-fullscreen")) {
+          setPseudoFullscreen(element, false);
+          return;
+        }
         const request =
           element.requestFullscreen || element.webkitRequestFullscreen;
         const exit = document.exitFullscreen || document.webkitExitFullscreen;
-        if (!request) return;
         if (getFullscreenElement()) {
           exit?.call(document);
           return;
         }
-        request.call(element);
+        if (request) {
+          try {
+            const result = request.call(element);
+            if (result?.catch) {
+              result.catch(() => {
+                setPseudoFullscreen(element, true);
+              });
+            }
+            return;
+          } catch (error) {
+            setPseudoFullscreen(element, true);
+            return;
+          }
+        }
+        setPseudoFullscreen(element, true);
       };
 
       const enableTapFullscreen = (element) => {
