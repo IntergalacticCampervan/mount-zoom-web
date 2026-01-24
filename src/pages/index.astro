@@ -71,7 +71,11 @@ import MediaPanel from "../components/MediaPanel.astro";
       );
       const lastSightingPill = document.getElementById("last-sighting-pill");
       const mediaContainer = document.getElementById("media-container");
+      const mediaFullscreenBtn = document.getElementById(
+        "media-fullscreen-btn"
+      );
       const mapContainer = document.getElementById("map-container");
+      const mapFullscreenBtn = document.getElementById("map-fullscreen-btn");
       const weatherLocation = document.getElementById("weather-location");
       const weatherTemp = document.getElementById("weather-temp");
       const weatherDesc = document.getElementById("weather-desc");
@@ -427,57 +431,13 @@ import MediaPanel from "../components/MediaPanel.astro";
         }
       });
 
-      const enableTapFullscreen = (element) => {
-        if (!element) return;
-        let touchStart = null;
-        let touchMoved = false;
-        let touchCount = 0;
+      mediaFullscreenBtn?.addEventListener("click", () => {
+        toggleFullscreen(mediaContainer);
+      });
 
-        element.addEventListener("touchstart", (event) => {
-          touchCount = event.touches.length;
-          if (touchCount !== 1) return;
-          touchMoved = false;
-          touchStart = {
-            x: event.touches[0].clientX,
-            y: event.touches[0].clientY,
-          };
-        });
-
-        element.addEventListener("touchmove", (event) => {
-          if (!touchStart || event.touches.length !== 1) return;
-          const dx = Math.abs(event.touches[0].clientX - touchStart.x);
-          const dy = Math.abs(event.touches[0].clientY - touchStart.y);
-          if (dx > 8 || dy > 8) {
-            touchMoved = true;
-          }
-        });
-
-        element.addEventListener("touchend", (event) => {
-          if (touchCount !== 1 || event.changedTouches.length !== 1) {
-            touchStart = null;
-            return;
-          }
-          if (!touchMoved && touchStart) {
-            toggleFullscreen(element);
-          }
-          touchStart = null;
-          touchMoved = false;
-          touchCount = 0;
-        });
-
-        element.addEventListener("touchcancel", () => {
-          touchStart = null;
-          touchMoved = false;
-          touchCount = 0;
-        });
-
-        element.addEventListener("click", () => {
-          toggleFullscreen(element);
-        });
-      };
-
-      enableTapFullscreen(mediaContainer);
-      enableTapFullscreen(mapContainer);
+      mapFullscreenBtn?.addEventListener("click", () => {
+        toggleFullscreen(mapContainer);
+      });
 
       reconnectBtn.addEventListener("click", async () => {
         await fetchLastSeen();
