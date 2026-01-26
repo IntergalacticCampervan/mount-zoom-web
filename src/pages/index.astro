@@ -79,6 +79,7 @@ import MediaPanel from "../components/MediaPanel.astro";
       const weatherLocation = document.getElementById("weather-location");
       const weatherTemp = document.getElementById("weather-temp");
       const weatherDesc = document.getElementById("weather-desc");
+      const weatherFeels = document.getElementById("weather-feels");
       const weatherAlt = document.getElementById("weather-alt");
 
       let lastSeenData = null;
@@ -174,8 +175,8 @@ import MediaPanel from "../components/MediaPanel.astro";
         weatherLocation.textContent = name;
         weatherTemp.textContent = temp;
         weatherDesc.textContent = desc;
-        if (weatherAlt) {
-          weatherAlt.textContent =
+        if (weatherFeels) {
+          weatherFeels.textContent =
             typeof payload.main?.feels_like === "number"
               ? `Feels ${Math.round(payload.main.feels_like)}°C`
               : "";
@@ -313,6 +314,9 @@ import MediaPanel from "../components/MediaPanel.astro";
           gpsHealthy = true;
           updateOnlineStatus();
           updateMap(data.lat, data.lon);
+          if (weatherAlt && isValidNumber(data.alt)) {
+            weatherAlt.textContent = `${Math.round(data.alt)}m ASL`;
+          }
           fetchWeather(data.lat, data.lon);
         } catch (error) {
           gpsHealthy = false;
