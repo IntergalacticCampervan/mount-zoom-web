@@ -30,6 +30,16 @@
   display: none;
 }
 
+.leaflet-pane,
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 40;
+}
+
+#map-fullscreen-btn {
+  z-index: 50;
+}
+
 body.no-scroll {
   overflow: hidden;
   position: fixed;
