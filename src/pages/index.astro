@@ -88,6 +88,7 @@ import MediaPanel from "../components/MediaPanel.astro";
       let mapMarker = null;
       let mapIcon = null;
       let pendingMarkerPosition = null;
+      let trailLine = null;
       let messageIndex = 0;
       let streamHealthy = false;
       let gpsHealthy = false;
@@ -268,7 +269,32 @@ import MediaPanel from "../components/MediaPanel.astro";
         if (lastSeenData && isValidNumber(lastSeenData.lat)) {
           updateMap(lastSeenData.lat, lastSeenData.lon);
         }
-
+      };
+      const refreshTrail = async () => {
+        if (!mapInstance || !window.L) return;
+        try {
+          const response = await fetch("/api/trail", { cache: "no-store" });
+          if (!response.ok) return;
+          const contentType = response.headers.get("content-type") ?? "";
+          if (!contentType.includes("application/json")) return;
+          const data = await response.json();
+          const points = data.points ?? [];
+          const latlngs = points
+            .filter((point) => isValidNumber(point.lat) && isValidNumber(point.lon))
+            .map((point) => [point.lat, point.lon]);
+          if (latlngs.length < 2) return;
+          if (!trailLine) {
+            trailLine = window.L.polyline(latlngs, {
+              weight: 4,
+              opacity: 0.8,
+              color: "#fbbf24",
+            }).addTo(mapInstance);
+          } else {
+            trailLine.setLatLngs(latlngs);
+          }
+        } catch (error) {
+          // Keep existing trail if refresh fails.
+        }
       };
 
       const fetchGps = async () => {
@@ -454,9 +480,16 @@ import MediaPanel from "../components/MediaPanel.astro";
       fetchLastSeen();
       fetchGps();
       loadStream();
+      refreshTrail();
 
       setInterval(fetchLastSeen, POLL_INTERVAL_MS);
       setInterval(fetchGps, GPS_POLL_MS);
+      setInterval(refreshTrail, POLL_INTERVAL_MS);
+      setInterval(() => {
+        if (!streamHealthy) {
+          loadStream();
+        }
+      }, STREAM_PROBE_MS);
       setInterval(() => {
         if (latestGps && isValidNumber(latestGps.lat)) {
           fetchWeather(latestGps.lat, latestGps.lon);
