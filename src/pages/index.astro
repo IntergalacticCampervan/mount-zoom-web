@@ -39,12 +39,12 @@ import MediaPanel from "../components/MediaPanel.astro";
     <script type="module">
       const LAST_SEEN_ENDPOINT = "/api/last-seen";
       const GPS_ENDPOINT = "/gps/location";
-      const OPENWEATHER_API_KEY = "299fbf95adcf65d403987fbec5b80a23";
+      const WEATHER_ENDPOINT = "/api/weather";
 
       const POLL_INTERVAL_MS = 30000;
-      const STREAM_PROBE_MS = 10000;
       const GPS_POLL_MS = 10000;
       const WEATHER_POLL_MS = 15 * 60 * 1000;
+      const FETCH_TIMEOUT_MS = 6000;
       const RECONNECT_MESSAGES = [
         "Reconnecting to stream...",
         "Checking tunnel status...",
@@ -95,37 +95,39 @@ import MediaPanel from "../components/MediaPanel.astro";
       let gpsHealthy = false;
       const MAP_ICON_SCALE = 0.08;
       const CAMPER_ICON_URL = "/camper-icon.png";
+      let pollingTimers = [];
+      let streamRetryDelay = 2000;
+      let streamRetryTimer = null;
 
       const isValidNumber = (value) =>
         typeof value === "number" && Number.isFinite(value);
 
-      const setStatus = (online) => {
-        isOnline = online;
-        const text = online ? "Online" : "Offline";
+      const renderStatus = () => {
+        const overallOnline = Boolean(streamHealthy || gpsHealthy);
+        const showStream = streamHealthy;
+        const showFallback = !streamHealthy && Boolean(lastSeenData);
+        isOnline = overallOnline;
+        const text = overallOnline ? "Online" : "Offline";
         statusText.textContent = text;
         statusInline.textContent = text;
-        statusInline.classList.toggle("text-emerald-300", online);
-        statusInline.classList.toggle("text-amber-300", !online);
-        statusDot.classList.toggle("bg-emerald-400", online);
-        statusDot.classList.toggle("bg-amber-400", !online);
+        statusInline.classList.toggle("text-emerald-300", overallOnline);
+        statusInline.classList.toggle("text-amber-300", !overallOnline);
+        statusDot.classList.toggle("bg-emerald-400", overallOnline);
+        statusDot.classList.toggle("bg-amber-400", !overallOnline);
         statusDot.classList.toggle(
           "shadow-[0_0_8px_rgba(16,185,129,0.8)]",
-          online
+          overallOnline
         );
         statusDot.classList.toggle(
           "shadow-[0_0_8px_rgba(251,191,36,0.7)]",
-          !online
+          !overallOnline
         );
-        offlineBanner.classList.toggle("hidden", streamHealthy);
-        fallbackImage.classList.toggle("hidden", streamHealthy);
-        streamImage.classList.toggle("hidden", !streamHealthy);
+        offlineBanner.classList.toggle("hidden", overallOnline);
+        fallbackImage.classList.toggle("hidden", !showFallback);
+        streamImage.classList.toggle("hidden", !showStream);
         lastSightingPill.classList.toggle("hidden", streamHealthy);
-        reconnectRow.classList.toggle("hidden", streamHealthy);
-        reconnectMessageWrap.classList.toggle("hidden", streamHealthy);
-      };
-
-      const updateOnlineStatus = () => {
-        setStatus(Boolean(streamHealthy || gpsHealthy));
+        reconnectRow.classList.toggle("hidden", overallOnline);
+        reconnectMessageWrap.classList.toggle("hidden", overallOnline);
       };
 
       const formatTimestamp = (isoValue) => {
@@ -159,6 +161,7 @@ import MediaPanel from "../components/MediaPanel.astro";
         if (data.imageUrl) {
           fallbackImage.src = `/api/last-seen/image?t=${Date.now()}`;
         }
+        renderStatus();
       };
 
       const updateWeatherUI = (payload) => {
@@ -184,18 +187,16 @@ import MediaPanel from "../components/MediaPanel.astro";
       };
 
       const fetchWeather = async (lat, lon) => {
-        if (!OPENWEATHER_API_KEY || OPENWEATHER_API_KEY === "REPLACE_ME") {
-          return;
-        }
         try {
-          const url = new URL(
-            "https://api.openweathermap.org/data/2.5/weather"
-          );
+          // TODO: Implement /api/weather on the backend if not already available.
+          const url = new URL(WEATHER_ENDPOINT, window.location.origin);
           url.searchParams.set("lat", lat.toString());
           url.searchParams.set("lon", lon.toString());
-          url.searchParams.set("units", "metric");
-          url.searchParams.set("appid", OPENWEATHER_API_KEY);
-          const response = await fetch(url.toString(), { cache: "no-store" });
+          const response = await fetchWithTimeout(
+            url.toString(),
+            { cache: "no-store" },
+            FETCH_TIMEOUT_MS
+          );
           if (!response.ok) throw new Error("Weather fetch failed");
           const contentType = response.headers.get("content-type") ?? "";
           if (!contentType.includes("application/json")) {
@@ -274,7 +275,11 @@ import MediaPanel from "../components/MediaPanel.astro";
       const refreshTrail = async () => {
         if (!mapInstance || !window.L) return;
         try {
-          const response = await fetch("/api/trail", { cache: "no-store" });
+          const response = await fetchWithTimeout(
+            "/api/trail",
+            { cache: "no-store" },
+            FETCH_TIMEOUT_MS
+          );
           if (!response.ok) return;
           const contentType = response.headers.get("content-type") ?? "";
           if (!contentType.includes("application/json")) return;
@@ -298,9 +303,26 @@ import MediaPanel from "../components/MediaPanel.astro";
         }
       };
 
+      const fetchWithTimeout = async (url, options = {}, timeoutMs = 5000) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          return await fetch(url, {
+            ...options,
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      };
+
       const fetchGps = async () => {
         try {
-          const response = await fetch(GPS_ENDPOINT, { cache: "no-store" });
+          const response = await fetchWithTimeout(
+            GPS_ENDPOINT,
+            { cache: "no-store" },
+            FETCH_TIMEOUT_MS
+          );
           if (!response.ok) throw new Error("GPS unavailable");
           const contentType = response.headers.get("content-type") ?? "";
           if (!contentType.includes("application/json")) {
@@ -312,7 +334,7 @@ import MediaPanel from "../components/MediaPanel.astro";
           }
           latestGps = data;
           gpsHealthy = true;
-          updateOnlineStatus();
+          renderStatus();
           updateMap(data.lat, data.lon);
           if (weatherAlt && isValidNumber(data.alt)) {
             weatherAlt.textContent = `${Math.round(data.alt)}m ASL`;
@@ -320,7 +342,7 @@ import MediaPanel from "../components/MediaPanel.astro";
           fetchWeather(data.lat, data.lon);
         } catch (error) {
           gpsHealthy = false;
-          updateOnlineStatus();
+          renderStatus();
           if (!streamHealthy && lastSeenData) {
             updateLastSeenUI(lastSeenData);
           }
@@ -329,9 +351,11 @@ import MediaPanel from "../components/MediaPanel.astro";
 
       const fetchLastSeen = async () => {
         try {
-          const response = await fetch(LAST_SEEN_ENDPOINT, {
-            cache: "no-store",
-          });
+          const response = await fetchWithTimeout(
+            LAST_SEEN_ENDPOINT,
+            { cache: "no-store" },
+            FETCH_TIMEOUT_MS
+          );
           if (!response.ok) throw new Error("Bad response");
           const contentType = response.headers.get("content-type") ?? "";
           if (!contentType.includes("application/json")) {
@@ -349,15 +373,11 @@ import MediaPanel from "../components/MediaPanel.astro";
           }
           lastSeenData = data;
           staleIndicator.classList.add("hidden");
-          if (!streamHealthy && !gpsHealthy) {
-            updateLastSeenUI(data);
-          }
+          updateLastSeenUI(data);
         } catch (error) {
           staleIndicator.classList.remove("hidden");
           if (lastSeenData) {
-            if (!streamHealthy && !gpsHealthy) {
-              updateLastSeenUI(lastSeenData);
-            }
+            updateLastSeenUI(lastSeenData);
           }
         }
       };
@@ -368,12 +388,18 @@ import MediaPanel from "../components/MediaPanel.astro";
 
       streamImage.addEventListener("error", () => {
         streamHealthy = false;
-        updateOnlineStatus();
+        renderStatus();
+        scheduleStreamRetry();
       });
 
       streamImage.addEventListener("load", () => {
         streamHealthy = true;
-        updateOnlineStatus();
+        streamRetryDelay = 2000;
+        if (streamRetryTimer) {
+          clearTimeout(streamRetryTimer);
+          streamRetryTimer = null;
+        }
+        renderStatus();
       });
 
       const getFullscreenElement = () =>
@@ -469,7 +495,7 @@ import MediaPanel from "../components/MediaPanel.astro";
         toggleFullscreen(mapContainer);
       });
 
-      reconnectBtn.addEventListener("click", async () => {
+      reconnectBtn?.addEventListener("click", async () => {
         await fetchLastSeen();
         loadStream();
         await fetchGps();
@@ -486,20 +512,66 @@ import MediaPanel from "../components/MediaPanel.astro";
       loadStream();
       refreshTrail();
 
-      setInterval(fetchLastSeen, POLL_INTERVAL_MS);
-      setInterval(fetchGps, GPS_POLL_MS);
-      setInterval(refreshTrail, POLL_INTERVAL_MS);
-      setInterval(() => {
+      const scheduleStreamRetry = () => {
+        if (streamRetryTimer) return;
+        streamRetryTimer = setTimeout(() => {
+          streamRetryTimer = null;
+          if (!streamHealthy) {
+            loadStream();
+            streamRetryDelay = Math.min(
+              Math.round(streamRetryDelay * 1.6),
+              60000
+            );
+          }
+        }, streamRetryDelay);
+      };
+
+      const startPolling = () => {
+        stopPolling();
+        pollingTimers = [
+          setInterval(fetchLastSeen, POLL_INTERVAL_MS),
+          setInterval(fetchGps, GPS_POLL_MS),
+          setInterval(refreshTrail, POLL_INTERVAL_MS),
+          setInterval(() => {
+            if (latestGps && isValidNumber(latestGps.lat)) {
+              fetchWeather(latestGps.lat, latestGps.lon);
+            }
+          }, WEATHER_POLL_MS),
+          setInterval(rotateMessage, 5000),
+        ];
+      };
+
+      const stopPolling = () => {
+        pollingTimers.forEach((timer) => clearInterval(timer));
+        pollingTimers = [];
+      };
+
+      window.addEventListener("online", () => {
+        loadStream();
+        fetchGps();
+        fetchLastSeen();
+      });
+
+      window.addEventListener("offline", () => {
+        streamHealthy = false;
+        gpsHealthy = false;
+        renderStatus();
+      });
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) {
+          stopPolling();
+          return;
+        }
+        startPolling();
+        fetchLastSeen();
+        fetchGps();
         if (!streamHealthy) {
           loadStream();
         }
-      }, STREAM_PROBE_MS);
-      setInterval(() => {
-        if (latestGps && isValidNumber(latestGps.lat)) {
-          fetchWeather(latestGps.lat, latestGps.lon);
-        }
-      }, WEATHER_POLL_MS);
-      setInterval(rotateMessage, 5000);
+      });
+
+      startPolling();
     </script>
   </body>
 </html>
