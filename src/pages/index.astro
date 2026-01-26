@@ -39,7 +39,7 @@ import MediaPanel from "../components/MediaPanel.astro";
     <script type="module">
       const LAST_SEEN_ENDPOINT = "/api/last-seen";
       const GPS_ENDPOINT = "/gps/location";
-      const WEATHER_ENDPOINT = "/api/weather";
+      const OPENWEATHER_API_KEY = "299fbf95adcf65d403987fbec5b80a23";
 
       const POLL_INTERVAL_MS = 30000;
       const GPS_POLL_MS = 10000;
@@ -188,10 +188,13 @@ import MediaPanel from "../components/MediaPanel.astro";
 
       const fetchWeather = async (lat, lon) => {
         try {
-          // TODO: Implement /api/weather on the backend if not already available.
-          const url = new URL(WEATHER_ENDPOINT, window.location.origin);
+          const url = new URL(
+            "https://api.openweathermap.org/data/2.5/weather"
+          );
           url.searchParams.set("lat", lat.toString());
           url.searchParams.set("lon", lon.toString());
+          url.searchParams.set("units", "metric");
+          url.searchParams.set("appid", OPENWEATHER_API_KEY);
           const response = await fetchWithTimeout(
             url.toString(),
             { cache: "no-store" },
