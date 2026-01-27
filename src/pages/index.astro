@@ -76,6 +76,7 @@ import MediaPanel from "../components/MediaPanel.astro";
       );
       const mapContainer = document.getElementById("map-container");
       const mapFullscreenBtn = document.getElementById("map-fullscreen-btn");
+      const mapRecenterBtn = document.getElementById("map-recenter-btn");
       const weatherLocation = document.getElementById("weather-location");
       const weatherTemp = document.getElementById("weather-temp");
       const weatherDesc = document.getElementById("weather-desc");
@@ -93,6 +94,7 @@ import MediaPanel from "../components/MediaPanel.astro";
       let messageIndex = 0;
       let streamHealthy = false;
       let gpsHealthy = false;
+      let mapHasUserMoved = false;
       const MAP_ICON_SCALE = 0.08;
       const CAMPER_ICON_URL = "/camper-icon.png";
       let pollingTimers = [];
@@ -215,7 +217,9 @@ import MediaPanel from "../components/MediaPanel.astro";
       const updateMap = (lat, lon) => {
         if (!mapInstance) return;
         const position = [lat, lon];
-        mapInstance.setView(position, 12, { animate: true });
+        if (!mapHasUserMoved) {
+          mapInstance.setView(position, 12, { animate: true });
+        }
         if (mapMarker) {
           mapMarker.setLatLng(position);
           return;
@@ -263,6 +267,10 @@ import MediaPanel from "../components/MediaPanel.astro";
           zoomControl: false,
           attributionControl: false,
         }).setView([-44.45, 171.21], 11);
+
+        mapInstance.on("dragstart zoomstart", () => {
+          mapHasUserMoved = true;
+        });
 
         window.L.tileLayer(
           "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -496,6 +504,19 @@ import MediaPanel from "../components/MediaPanel.astro";
 
       mapFullscreenBtn?.addEventListener("click", () => {
         toggleFullscreen(mapContainer);
+      });
+
+      mapRecenterBtn?.addEventListener("click", () => {
+        mapHasUserMoved = false;
+        if (latestGps && isValidNumber(latestGps.lat)) {
+          mapInstance?.setView([latestGps.lat, latestGps.lon], 12, {
+            animate: true,
+          });
+        } else if (lastSeenData && isValidNumber(lastSeenData.lat)) {
+          mapInstance?.setView([lastSeenData.lat, lastSeenData.lon], 12, {
+            animate: true,
+          });
+        }
       });
 
       reconnectBtn?.addEventListener("click", async () => {

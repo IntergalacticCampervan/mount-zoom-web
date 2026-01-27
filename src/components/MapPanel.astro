@@ -9,7 +9,7 @@
     <div id="map" class="h-full w-full"></div>
     <button
       id="map-fullscreen-btn"
-      class="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-950/70 text-amber-200 ring-1 ring-amber-200/40 transition hover:bg-slate-950/90"
+      class="absolute right-3 top-3 z-50 inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-950/70 text-amber-200 ring-1 ring-amber-200/40 transition hover:bg-slate-950/90"
       type="button"
       aria-label="Toggle fullscreen"
     >
@@ -27,6 +27,29 @@
         <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
         <path d="M3 16v3a2 2 0 0 0 2 2h3" />
         <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+      </svg>
+    </button>
+    <button
+      id="map-recenter-btn"
+      class="absolute bottom-3 right-3 z-50 inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-950/70 text-amber-200 ring-1 ring-amber-200/40 transition hover:bg-slate-950/90"
+      type="button"
+      aria-label="Recenter map"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        class="h-4 w-4"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="6" />
+        <path d="M12 2v2" />
+        <path d="M12 20v2" />
+        <path d="M2 12h2" />
+        <path d="M20 12h2" />
       </svg>
     </button>
   </div>
