@@ -114,6 +114,7 @@ import MediaPanel from "../components/MediaPanel.astro";
       let pollingTimers = [];
       let trailPollTimer = null;
       let trailWindow = "24h";
+      let trailRequestId = 0;
       let streamRetryDelay = 2000;
       let streamRetryTimer = null;
 
@@ -301,6 +302,7 @@ import MediaPanel from "../components/MediaPanel.astro";
       };
       const refreshTrail = async () => {
         if (!mapInstance || !window.L) return;
+        const requestId = (trailRequestId += 1);
         try {
           const windowKey = trailWindow;
           const maxPoints =
@@ -317,6 +319,7 @@ import MediaPanel from "../components/MediaPanel.astro";
           const contentType = response.headers.get("content-type") ?? "";
           if (!contentType.includes("application/json")) return;
           const data = await response.json();
+          if (requestId !== trailRequestId) return;
           const points = Array.isArray(data?.points) ? data.points : [];
           const latlngs = points
             .filter(
@@ -594,7 +597,11 @@ import MediaPanel from "../components/MediaPanel.astro";
       const initTrailControls = () => {
         try {
           const stored = localStorage.getItem(TRAIL_WINDOW_STORAGE_KEY);
-          trailWindow = resolveTrailWindow(stored ?? trailWindow);
+          if (stored) {
+            trailWindow = resolveTrailWindow(stored);
+          } else {
+            setTrailWindow("24h");
+          }
         } catch (error) {
           trailWindow = resolveTrailWindow(trailWindow);
         }
