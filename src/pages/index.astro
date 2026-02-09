@@ -698,9 +698,13 @@ import MediaPanel from "../components/MediaPanel.astro";
         startPolling();
         fetchLastSeen();
         fetchGps();
-        if (!streamHealthy) {
-          loadStream();
+        const isStreamBlank =
+          !streamImage?.complete || (streamImage?.naturalWidth ?? 0) === 0;
+        if (isStreamBlank) {
+          streamHealthy = false;
+          renderStatus();
         }
+        loadStream();
       });
 
       startPolling();
