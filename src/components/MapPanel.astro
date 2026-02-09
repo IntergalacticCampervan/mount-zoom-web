@@ -7,6 +7,53 @@
     class="relative h-56 w-full overflow-hidden rounded-2xl bg-slate-900/70 shadow-[0_18px_50px_rgba(0,0,0,0.45)] ring-1 ring-white/5 sm:h-72"
   >
     <div id="map" class="h-full w-full"></div>
+    <div
+      class="absolute right-14 top-3 z-50 flex items-center gap-1 rounded-full bg-slate-950/70 p-1 ring-1 ring-amber-200/30"
+      aria-label="Trail time window"
+    >
+      <button
+        type="button"
+        class="trail-window-btn inline-flex h-7 items-center justify-center rounded-full px-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-200/80 transition hover:text-amber-100"
+        data-trail-window="1h"
+      >
+        1h
+      </button>
+      <button
+        type="button"
+        class="trail-window-btn inline-flex h-7 items-center justify-center rounded-full px-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-200/80 transition hover:text-amber-100"
+        data-trail-window="6h"
+      >
+        6h
+      </button>
+      <button
+        type="button"
+        class="trail-window-btn inline-flex h-7 items-center justify-center rounded-full px-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-200/80 transition hover:text-amber-100"
+        data-trail-window="24h"
+      >
+        24h
+      </button>
+      <button
+        type="button"
+        class="trail-window-btn inline-flex h-7 items-center justify-center rounded-full px-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-200/80 transition hover:text-amber-100"
+        data-trail-window="7d"
+      >
+        7d
+      </button>
+      <button
+        type="button"
+        class="trail-window-btn inline-flex h-7 items-center justify-center rounded-full px-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-200/80 transition hover:text-amber-100"
+        data-trail-window="30d"
+      >
+        30d
+      </button>
+      <button
+        type="button"
+        class="trail-window-btn inline-flex h-7 items-center justify-center rounded-full px-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-200/80 transition hover:text-amber-100"
+        data-trail-window="all"
+      >
+        All
+      </button>
+    </div>
     <button
       id="map-fullscreen-btn"
       class="absolute right-3 top-3 z-50 inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-950/70 text-amber-200 ring-1 ring-amber-200/40 transition hover:bg-slate-950/90"

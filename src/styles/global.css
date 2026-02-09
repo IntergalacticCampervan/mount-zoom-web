@@ -36,6 +36,11 @@
   z-index: 40;
 }
 
+.trail-window-btn.is-active {
+  background: rgba(251, 191, 36, 0.9);
+  color: #0f172a;
+}
+
 #map-fullscreen-btn {
   z-index: 50;
 }
