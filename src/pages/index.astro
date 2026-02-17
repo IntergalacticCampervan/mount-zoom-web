@@ -298,11 +298,15 @@ import MediaPanel from "../components/MediaPanel.astro";
         return parseCommentJsonOrThrow(response);
       };
 
-      const deleteComment = async (commentId) => {
+      const deleteComment = async (commentId, payload) => {
         const response = await fetch(
           `${COMMENTS_ENDPOINT}/${encodeURIComponent(commentId)}`,
           {
             method: "DELETE",
+            headers: {
+              "content-type": "application/json",
+            },
+            body: JSON.stringify(payload),
           }
         );
         if (!response.ok) {
@@ -1315,7 +1319,10 @@ import MediaPanel from "../components/MediaPanel.astro";
         setEditSavingState(true);
         setEditStatus("");
         try {
-          const updated = await updateComment(activeEditCommentId, { message });
+          const updated = await updateComment(activeEditCommentId, {
+            userId,
+            message,
+          });
           commentsState = commentsState.map((comment) =>
             String(comment.id ?? "") === activeEditCommentId
               ? {
@@ -1344,7 +1351,7 @@ import MediaPanel from "../components/MediaPanel.astro";
 
       const deleteCommentById = async (commentId) => {
         try {
-          await deleteComment(commentId);
+          await deleteComment(commentId, { userId });
           commentsState = commentsState.filter(
             (comment) => String(comment.id ?? "") !== commentId
           );
