@@ -1,0 +1,26 @@
+---
+import CommentsFeed from "./CommentsFeed.astro";
+import CommentComposer from "./CommentComposer.astro";
+---
+
+<section id="comments-panel" class="flex flex-col">
+  <div class="mb-3 flex items-center justify-between gap-3">
+    <div>
+      <h3 class="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Comments</h3>
+      <p class="text-xs text-slate-500">
+        <span id="comments-display-name-label">Posting as</span>
+        <span id="comments-display-name" class="font-semibold text-amber-200">Guest</span>
+      </p>
+    </div>
+    <button
+      id="comments-change-name-btn"
+      type="button"
+      class="inline-flex items-center justify-center rounded-full bg-slate-900/70 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 ring-1 ring-white/10 transition hover:bg-slate-800"
+    >
+      Change name
+    </button>
+  </div>
+
+  <CommentsFeed />
+  <CommentComposer />
+</section>

@@ -41,3 +41,20 @@ All commands are run from the root of the project, from a terminal:
 ## 👀 Want to learn more?
 
 Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+
+## Comments API (Frontend Contract)
+
+The Journey Comments UI expects these backend endpoints:
+
+- `GET /api/comments?trailId=YYYY-MM-DD&limit=50`
+  - Returns an array of comments:
+    - `id`, `userId`, `displayName`, `message`, `createdAt`, `lat`, `lon`, `trailId`, `snapshotUrl`
+- `POST /api/comments`
+  - JSON body:
+    - `userId`, `displayName`, `message`, `lat`, `lon`, `trailId`
+  - Returns the created comment object
+
+Existing fallback endpoint reused by the UI:
+
+- `GET /api/last-seen`
+  - Used to resolve `lat/lon` when live GPS state is unavailable.
