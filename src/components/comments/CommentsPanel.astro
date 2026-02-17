@@ -12,13 +12,22 @@ import CommentComposer from "./CommentComposer.astro";
         <span id="comments-display-name" class="font-semibold text-amber-200">Guest</span>
       </p>
     </div>
-    <button
-      id="comments-change-name-btn"
-      type="button"
-      class="inline-flex items-center justify-center rounded-full bg-slate-900/70 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 ring-1 ring-white/10 transition hover:bg-slate-800"
-    >
-      Change name
-    </button>
+    <div class="flex items-center gap-2">
+      <button
+        id="comments-add-comment-btn"
+        type="button"
+        class="inline-flex items-center justify-center rounded-full bg-amber-300/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-amber-200 ring-1 ring-amber-200/30 transition hover:bg-amber-300/20"
+      >
+        Add comment
+      </button>
+      <button
+        id="comments-change-name-btn"
+        type="button"
+        class="inline-flex items-center justify-center rounded-full bg-slate-900/70 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 ring-1 ring-white/10 transition hover:bg-slate-800"
+      >
+        Change name
+      </button>
+    </div>
   </div>
 
   <CommentsFeed />

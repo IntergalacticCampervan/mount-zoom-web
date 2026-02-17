@@ -105,6 +105,9 @@ import MediaPanel from "../components/MediaPanel.astro";
       const weatherFeels = document.getElementById("weather-feels");
       const weatherAlt = document.getElementById("weather-alt");
       const commentsDisplayName = document.getElementById("comments-display-name");
+      const commentsAddCommentBtn = document.getElementById(
+        "comments-add-comment-btn"
+      );
       const commentsChangeNameBtn = document.getElementById(
         "comments-change-name-btn"
       );
@@ -294,9 +297,6 @@ import MediaPanel from "../components/MediaPanel.astro";
         });
         if (activeBottomsheetTab === "comments") {
           refreshLatestViewPreview();
-          if (!displayName) {
-            openJoinJourneyModal(false);
-          }
           loadComments();
         }
       };
@@ -512,7 +512,9 @@ import MediaPanel from "../components/MediaPanel.astro";
       };
 
       const resolveCommentLoadErrorMessage = (status) => {
-        if (status === 404) return "Comments aren't available yet.";
+        if (status === 404 || status === 500 || status === 502 || status === 503) {
+          return "Comments aren't available yet.";
+        }
         if (status === 401 || status === 403) {
           return "You don't have access to comments.";
         }
@@ -1126,7 +1128,12 @@ import MediaPanel from "../components/MediaPanel.astro";
             error instanceof CommentsApiError ? error.status : undefined;
           if (status === 401 || status === 403) {
             setComposerStatus("You don't have access to comments.", "error");
-          } else if (status === 404) {
+          } else if (
+            status === 404 ||
+            status === 500 ||
+            status === 502 ||
+            status === 503
+          ) {
             setComposerStatus("Comments aren't available yet.", "error");
           } else {
             setComposerStatus("Unable to post right now. Please retry.", "error");
@@ -1157,6 +1164,14 @@ import MediaPanel from "../components/MediaPanel.astro";
 
         commentsChangeNameBtn?.addEventListener("click", () => {
           openJoinJourneyModal(true);
+        });
+
+        commentsAddCommentBtn?.addEventListener("click", () => {
+          if (!displayName) {
+            openJoinJourneyModal(true);
+            return;
+          }
+          commentMessage?.focus();
         });
 
         commentsRetryBtn?.addEventListener("click", () => {
