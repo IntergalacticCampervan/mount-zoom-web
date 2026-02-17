@@ -91,6 +91,7 @@ import MediaPanel from "../components/MediaPanel.astro";
       const trailWindowButtons = Array.from(
         document.querySelectorAll("[data-trail-window]")
       );
+      const trailDistance = document.getElementById("trail-distance");
       const weatherLocation = document.getElementById("weather-location");
       const weatherTemp = document.getElementById("weather-temp");
       const weatherDesc = document.getElementById("weather-desc");
@@ -111,6 +112,7 @@ import MediaPanel from "../components/MediaPanel.astro";
       let mapHasUserMoved = false;
       const MAP_ICON_SCALE = 0.08;
       const CAMPER_ICON_URL = "/camper-icon.png";
+      const EARTH_RADIUS_KM = 6371;
       let pollingTimers = [];
       let trailPollTimer = null;
       let trailWindow = "24h";
@@ -120,6 +122,37 @@ import MediaPanel from "../components/MediaPanel.astro";
 
       const isValidNumber = (value) =>
         typeof value === "number" && Number.isFinite(value);
+
+      const toRadians = (value) => (value * Math.PI) / 180;
+
+      const getSegmentDistanceKm = (start, end) => {
+        const dLat = toRadians(end[0] - start[0]);
+        const dLon = toRadians(end[1] - start[1]);
+        const startLat = toRadians(start[0]);
+        const endLat = toRadians(end[0]);
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(startLat) *
+            Math.cos(endLat) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return EARTH_RADIUS_KM * c;
+      };
+
+      const getTrailDistanceKm = (latlngs) => {
+        if (!Array.isArray(latlngs) || latlngs.length < 2) return 0;
+        let total = 0;
+        for (let i = 1; i < latlngs.length; i += 1) {
+          total += getSegmentDistanceKm(latlngs[i - 1], latlngs[i]);
+        }
+        return total;
+      };
+
+      const updateTrailDistanceUI = (distanceKm) => {
+        if (!trailDistance) return;
+        trailDistance.textContent = `${distanceKm.toFixed(1)} km`;
+      };
 
       const renderStatus = () => {
         const overallOnline = Boolean(streamHealthy || gpsHealthy);
@@ -326,6 +359,7 @@ import MediaPanel from "../components/MediaPanel.astro";
               (point) => isValidNumber(point.lat) && isValidNumber(point.lon)
             )
             .map((point) => [point.lat, point.lon]);
+          updateTrailDistanceUI(getTrailDistanceKm(latlngs));
           if (latlngs.length < 2) return;
           if (!trailLine) {
             trailLine = window.L.polyline(latlngs, {
