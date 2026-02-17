@@ -1,0 +1,39 @@
+<section class="sticky bottom-0 mt-4 rounded-2xl bg-slate-950/90 p-4 ring-1 ring-white/5 backdrop-blur">
+  <div class="mb-3 flex items-center justify-between gap-3">
+    <div>
+      <div class="text-[11px] uppercase tracking-[0.2em] text-slate-500">Latest view</div>
+      <div class="text-xs text-slate-400">Snapshot for your comment is captured server-side when posted.</div>
+    </div>
+    <img
+      id="comments-latest-view"
+      src="/api/last-seen/image"
+      alt="Latest view"
+      class="h-14 w-20 rounded-lg object-cover ring-1 ring-amber-200/20"
+      loading="lazy"
+    />
+  </div>
+
+  <form id="comment-form" class="space-y-3">
+    <textarea
+      id="comment-message"
+      name="message"
+      rows="3"
+      maxlength="140"
+      placeholder="Share what you are seeing"
+      class="w-full resize-none rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-amber-200/50 focus:ring-2 focus:ring-amber-200/20"
+    ></textarea>
+    <div class="flex items-center justify-between gap-3">
+      <p id="comment-form-status" class="min-h-[1.25rem] text-xs text-slate-400"></p>
+      <div class="flex items-center gap-3">
+        <span id="comment-char-count" class="text-xs text-slate-400">0/140</span>
+        <button
+          id="comment-submit"
+          type="submit"
+          class="inline-flex items-center justify-center rounded-full bg-amber-300/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-amber-200 ring-1 ring-amber-200/30 transition hover:bg-amber-300/20 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Post comment
+        </button>
+      </div>
+    </div>
+  </form>
+</section>

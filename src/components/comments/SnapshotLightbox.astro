@@ -1,0 +1,29 @@
+<div
+  id="snapshot-lightbox"
+  class="fixed inset-0 z-[85] hidden items-center justify-center bg-slate-950/85 px-4"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="snapshot-lightbox-title"
+>
+  <div class="relative w-full max-w-4xl">
+    <div class="mb-3 flex items-center justify-between gap-3">
+      <h3 id="snapshot-lightbox-title" class="text-sm font-semibold uppercase tracking-[0.2em] text-amber-200">
+        Comment snapshot
+      </h3>
+      <button
+        id="snapshot-lightbox-close"
+        type="button"
+        class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-900/80 text-amber-200 ring-1 ring-amber-200/30 transition hover:bg-slate-800"
+        aria-label="Close snapshot"
+      >
+        ×
+      </button>
+    </div>
+    <img
+      id="snapshot-lightbox-image"
+      src=""
+      alt="Comment snapshot"
+      class="max-h-[80vh] w-full rounded-2xl object-contain ring-1 ring-white/10"
+    />
+  </div>
+</div>

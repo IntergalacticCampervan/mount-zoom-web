@@ -37,6 +37,13 @@ import MediaPanel from "../components/MediaPanel.astro";
       crossorigin=""
     ></script>
     <script type="module">
+      import {
+        CommentsApiError,
+        createComment,
+        getNzTrailId,
+        listComments,
+      } from "../lib/commentsApi.js";
+
       const LAST_SEEN_ENDPOINT = "/api/last-seen";
       const GPS_ENDPOINT = "/gps/location";
       const OPENWEATHER_API_KEY = "299fbf95adcf65d403987fbec5b80a23";
@@ -91,12 +98,46 @@ import MediaPanel from "../components/MediaPanel.astro";
       const trailWindowButtons = Array.from(
         document.querySelectorAll("[data-trail-window]")
       );
+      const bottomsheetTabButtons = Array.from(
+        document.querySelectorAll("[data-bottomsheet-tab]")
+      );
+      const bottomsheetPanels = Array.from(
+        document.querySelectorAll("[data-bottomsheet-panel]")
+      );
       const trailDistance = document.getElementById("trail-distance");
       const weatherLocation = document.getElementById("weather-location");
       const weatherTemp = document.getElementById("weather-temp");
       const weatherDesc = document.getElementById("weather-desc");
       const weatherFeels = document.getElementById("weather-feels");
       const weatherAlt = document.getElementById("weather-alt");
+      const commentsDisplayName = document.getElementById("comments-display-name");
+      const commentsChangeNameBtn = document.getElementById(
+        "comments-change-name-btn"
+      );
+      const commentsFeed = document.getElementById("comments-list");
+      const commentsLoading = document.getElementById("comments-loading");
+      const commentsError = document.getElementById("comments-error");
+      const commentsErrorMessage = document.getElementById("comments-error-message");
+      const commentsRetryBtn = document.getElementById("comments-retry-btn");
+      const commentsEmpty = document.getElementById("comments-empty");
+      const commentsForm = document.getElementById("comment-form");
+      const commentMessage = document.getElementById("comment-message");
+      const commentSubmitBtn = document.getElementById("comment-submit");
+      const commentCharCount = document.getElementById("comment-char-count");
+      const commentFormStatus = document.getElementById("comment-form-status");
+      const commentsLatestView = document.getElementById("comments-latest-view");
+      const joinJourneyModal = document.getElementById("join-journey-modal");
+      const joinJourneyForm = document.getElementById("join-journey-form");
+      const joinDisplayNameInput = document.getElementById("join-display-name");
+      const joinNameError = document.getElementById("join-name-error");
+      const joinCancelBtn = document.getElementById("join-cancel-btn");
+      const snapshotLightbox = document.getElementById("snapshot-lightbox");
+      const snapshotLightboxImage = document.getElementById(
+        "snapshot-lightbox-image"
+      );
+      const snapshotLightboxClose = document.getElementById(
+        "snapshot-lightbox-close"
+      );
 
       let lastSeenData = null;
       let latestGps = null;
@@ -119,6 +160,14 @@ import MediaPanel from "../components/MediaPanel.astro";
       let trailRequestId = 0;
       let streamRetryDelay = 2000;
       let streamRetryTimer = null;
+      let activeBottomsheetTab = "status";
+      let commentsLoadedTrailId = "";
+      let isCommentsLoading = false;
+      let commentsState = [];
+      let displayName = "";
+      let userId = "";
+      let locateMarker = null;
+      let locateMarkerTimer = null;
 
       const isValidNumber = (value) =>
         typeof value === "number" && Number.isFinite(value);
@@ -152,6 +201,323 @@ import MediaPanel from "../components/MediaPanel.astro";
       const updateTrailDistanceUI = (distanceKm) => {
         if (!trailDistance) return;
         trailDistance.textContent = `${distanceKm.toFixed(1)} km`;
+      };
+
+      const getStoredValue = (key) => {
+        try {
+          return localStorage.getItem(key) ?? "";
+        } catch (error) {
+          return "";
+        }
+      };
+
+      const setStoredValue = (key, value) => {
+        try {
+          localStorage.setItem(key, value);
+        } catch (error) {
+          // Ignore storage failures.
+        }
+      };
+
+      const createUserId = () => {
+        if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+        return `mz-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      };
+
+      const setBottomsheetTab = (value) => {
+        activeBottomsheetTab = value === "comments" ? "comments" : "status";
+        bottomsheetTabButtons.forEach((button) => {
+          button.classList.toggle(
+            "is-active",
+            button.dataset.bottomsheetTab === activeBottomsheetTab
+          );
+        });
+        bottomsheetPanels.forEach((panel) => {
+          panel.classList.toggle(
+            "hidden",
+            panel.dataset.bottomsheetPanel !== activeBottomsheetTab
+          );
+        });
+        if (activeBottomsheetTab === "comments") {
+          refreshLatestViewPreview();
+          if (!displayName) {
+            openJoinJourneyModal(false);
+          }
+          loadComments();
+        }
+      };
+
+      const setComposerStatus = (message = "", tone = "muted") => {
+        if (!commentFormStatus) return;
+        commentFormStatus.textContent = message;
+        commentFormStatus.classList.remove(
+          "text-slate-400",
+          "text-amber-200",
+          "text-emerald-300"
+        );
+        if (tone === "error") {
+          commentFormStatus.classList.add("text-amber-200");
+          return;
+        }
+        if (tone === "success") {
+          commentFormStatus.classList.add("text-emerald-300");
+          return;
+        }
+        commentFormStatus.classList.add("text-slate-400");
+      };
+
+      const setPostingState = (isPosting) => {
+        if (commentSubmitBtn) {
+          commentSubmitBtn.disabled = isPosting;
+          commentSubmitBtn.textContent = isPosting ? "Posting..." : "Post comment";
+        }
+        if (commentMessage) {
+          commentMessage.disabled = isPosting;
+        }
+      };
+
+      const updateCharCount = () => {
+        if (!commentCharCount || !commentMessage) return;
+        commentCharCount.textContent = `${commentMessage.value.length}/140`;
+      };
+
+      const setDisplayName = (value) => {
+        displayName = value;
+        if (commentsDisplayName) {
+          commentsDisplayName.textContent = displayName || "Guest";
+        }
+      };
+
+      const showJoinNameError = (message = "") => {
+        if (!joinNameError) return;
+        joinNameError.textContent = message;
+      };
+
+      const openJoinJourneyModal = (dismissible = true) => {
+        if (!joinJourneyModal) return;
+        joinJourneyModal.dataset.dismissible = dismissible ? "true" : "false";
+        joinJourneyModal.classList.remove("hidden");
+        joinJourneyModal.classList.add("flex");
+        if (joinCancelBtn) {
+          joinCancelBtn.classList.toggle("hidden", !dismissible);
+        }
+        if (joinDisplayNameInput) {
+          joinDisplayNameInput.value = displayName;
+          setTimeout(() => joinDisplayNameInput.focus(), 0);
+        }
+        showJoinNameError("");
+      };
+
+      const closeJoinJourneyModal = () => {
+        if (!joinJourneyModal) return;
+        joinJourneyModal.classList.add("hidden");
+        joinJourneyModal.classList.remove("flex");
+        showJoinNameError("");
+      };
+
+      const openSnapshotLightbox = (snapshotUrl) => {
+        if (!snapshotLightbox || !snapshotLightboxImage) return;
+        snapshotLightboxImage.src = snapshotUrl;
+        snapshotLightbox.classList.remove("hidden");
+        snapshotLightbox.classList.add("flex");
+      };
+
+      const closeSnapshotLightbox = () => {
+        if (!snapshotLightbox || !snapshotLightboxImage) return;
+        snapshotLightbox.classList.add("hidden");
+        snapshotLightbox.classList.remove("flex");
+        snapshotLightboxImage.src = "";
+      };
+
+      const refreshLatestViewPreview = () => {
+        if (!commentsLatestView) return;
+        commentsLatestView.src = `/api/last-seen/image?t=${Date.now()}`;
+      };
+
+      const setCommentsView = (state, message = "") => {
+        commentsLoading?.classList.toggle("hidden", state !== "loading");
+        commentsError?.classList.toggle("hidden", state !== "error");
+        commentsEmpty?.classList.toggle("hidden", state !== "empty");
+        commentsFeed?.classList.toggle("hidden", state !== "list");
+        if (commentsErrorMessage && message) {
+          commentsErrorMessage.textContent = message;
+        }
+      };
+
+      const formatCommentTime = (value) => {
+        if (typeof value !== "string") return "--";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "--";
+        return new Intl.DateTimeFormat("en-NZ", {
+          day: "2-digit",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        }).format(date);
+      };
+
+      const addLocateMarker = (lat, lon) => {
+        if (!mapInstance || !window.L) return;
+        if (locateMarker) {
+          mapInstance.removeLayer(locateMarker);
+          locateMarker = null;
+        }
+        if (locateMarkerTimer) {
+          clearTimeout(locateMarkerTimer);
+          locateMarkerTimer = null;
+        }
+        locateMarker = window.L.circleMarker([lat, lon], {
+          radius: 10,
+          color: "#fbbf24",
+          weight: 2,
+          fillColor: "#f59e0b",
+          fillOpacity: 0.35,
+        }).addTo(mapInstance);
+        locateMarkerTimer = setTimeout(() => {
+          if (mapInstance && locateMarker) {
+            mapInstance.removeLayer(locateMarker);
+          }
+          locateMarker = null;
+          locateMarkerTimer = null;
+        }, 8000);
+      };
+
+      const renderComments = () => {
+        if (!commentsFeed) return;
+        commentsFeed.innerHTML = "";
+        if (!commentsState.length) {
+          setCommentsView("empty");
+          return;
+        }
+
+        const fragment = document.createDocumentFragment();
+        commentsState.forEach((comment) => {
+          const item = document.createElement("li");
+          item.className =
+            "rounded-xl bg-slate-900/70 p-3 ring-1 ring-white/5";
+
+          const header = document.createElement("div");
+          header.className = "mb-2 flex items-center justify-between gap-3";
+          const nameEl = document.createElement("p");
+          nameEl.className = "text-sm font-semibold text-amber-100";
+          nameEl.textContent = comment.displayName || "Guest";
+          const timeEl = document.createElement("p");
+          timeEl.className = "text-xs text-slate-400";
+          timeEl.textContent = formatCommentTime(comment.createdAt);
+          header.append(nameEl, timeEl);
+
+          const messageEl = document.createElement("p");
+          messageEl.className = "whitespace-pre-wrap text-sm text-slate-200";
+          messageEl.textContent = comment.message || "";
+
+          const actions = document.createElement("div");
+          actions.className = "mt-3 flex flex-wrap items-center gap-2";
+
+          if (isValidNumber(comment.lat) && isValidNumber(comment.lon)) {
+            const locateBtn = document.createElement("button");
+            locateBtn.type = "button";
+            locateBtn.className =
+              "inline-flex items-center justify-center rounded-full bg-slate-800 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-200 ring-1 ring-white/10 transition hover:bg-slate-700";
+            locateBtn.dataset.commentLocate = "true";
+            locateBtn.dataset.lat = String(comment.lat);
+            locateBtn.dataset.lon = String(comment.lon);
+            locateBtn.textContent = "Locate";
+            actions.append(locateBtn);
+          }
+
+          if (typeof comment.snapshotUrl === "string" && comment.snapshotUrl) {
+            const snapshotBtn = document.createElement("button");
+            snapshotBtn.type = "button";
+            snapshotBtn.className =
+              "inline-flex items-center gap-2 rounded-full bg-amber-300/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-200 ring-1 ring-amber-200/30 transition hover:bg-amber-300/20";
+            snapshotBtn.dataset.commentSnapshot = "true";
+            snapshotBtn.dataset.snapshotUrl = comment.snapshotUrl;
+
+            const thumb = document.createElement("img");
+            thumb.src = comment.snapshotUrl;
+            thumb.alt = "Comment snapshot thumbnail";
+            thumb.loading = "lazy";
+            thumb.className = "h-7 w-10 rounded object-cover ring-1 ring-amber-200/25";
+
+            const text = document.createElement("span");
+            text.textContent = "View snapshot";
+
+            snapshotBtn.append(thumb, text);
+            actions.append(snapshotBtn);
+          }
+
+          item.append(header, messageEl, actions);
+          fragment.append(item);
+        });
+
+        commentsFeed.append(fragment);
+        setCommentsView("list");
+      };
+
+      const resolveCommentLoadErrorMessage = (status) => {
+        if (status === 404) return "Comments aren't available yet.";
+        if (status === 401 || status === 403) {
+          return "You don't have access to comments.";
+        }
+        return "Unable to load comments right now. Please retry.";
+      };
+
+      const loadComments = async ({ force = false } = {}) => {
+        const trailId = getNzTrailId(new Date());
+        if (!force && commentsLoadedTrailId === trailId && commentsState.length) {
+          return;
+        }
+        if (isCommentsLoading) return;
+        isCommentsLoading = true;
+        setCommentsView("loading");
+        try {
+          const payload = await listComments(trailId, 50);
+          commentsState = payload
+            .filter((item) => item && typeof item === "object")
+            .sort(
+              (a, b) =>
+                new Date(b.createdAt ?? 0).getTime() -
+                new Date(a.createdAt ?? 0).getTime()
+            );
+          commentsLoadedTrailId = trailId;
+          renderComments();
+        } catch (error) {
+          const status =
+            error instanceof CommentsApiError ? error.status : undefined;
+          setCommentsView("error", resolveCommentLoadErrorMessage(status));
+        } finally {
+          isCommentsLoading = false;
+        }
+      };
+
+      const resolveCommentCoordinates = async () => {
+        if (latestGps && isValidNumber(latestGps.lat) && isValidNumber(latestGps.lon)) {
+          return { lat: latestGps.lat, lon: latestGps.lon };
+        }
+        if (
+          lastSeenData &&
+          isValidNumber(lastSeenData.lat) &&
+          isValidNumber(lastSeenData.lon)
+        ) {
+          return { lat: lastSeenData.lat, lon: lastSeenData.lon };
+        }
+        const response = await fetchWithTimeout(
+          LAST_SEEN_ENDPOINT,
+          { cache: "no-store" },
+          FETCH_TIMEOUT_MS
+        );
+        if (!response.ok) {
+          throw new Error("Location is currently unavailable.");
+        }
+        const contentType = response.headers.get("content-type") ?? "";
+        if (!contentType.includes("application/json")) {
+          throw new Error("Location is currently unavailable.");
+        }
+        const payload = await response.json();
+        if (!isValidNumber(payload.lat) || !isValidNumber(payload.lon)) {
+          throw new Error("Location is currently unavailable.");
+        }
+        return { lat: payload.lat, lon: payload.lon };
       };
 
       const renderStatus = () => {
@@ -212,6 +578,9 @@ import MediaPanel from "../components/MediaPanel.astro";
         }
         if (data.imageUrl) {
           fallbackImage.src = `/api/last-seen/image?t=${Date.now()}`;
+          if (activeBottomsheetTab === "comments") {
+            refreshLatestViewPreview();
+          }
         }
         renderStatus();
       };
@@ -659,6 +1028,175 @@ import MediaPanel from "../components/MediaPanel.astro";
         });
       };
 
+      const submitComment = async () => {
+        if (!commentMessage || !displayName || !userId) {
+          setComposerStatus("Set your display name before posting.", "error");
+          openJoinJourneyModal(false);
+          return;
+        }
+        const message = commentMessage.value.trim();
+        if (!message) {
+          setComposerStatus("Add a short comment before posting.", "error");
+          return;
+        }
+        setPostingState(true);
+        setComposerStatus("");
+        try {
+          const { lat, lon } = await resolveCommentCoordinates();
+          const trailId = getNzTrailId(new Date());
+          const created = await createComment({
+            userId,
+            displayName,
+            message,
+            lat,
+            lon,
+            trailId,
+          });
+          commentMessage.value = "";
+          updateCharCount();
+          setComposerStatus("Comment posted.", "success");
+          refreshLatestViewPreview();
+          commentsState = [created, ...commentsState].sort(
+            (a, b) =>
+              new Date(b.createdAt ?? 0).getTime() -
+              new Date(a.createdAt ?? 0).getTime()
+          );
+          commentsLoadedTrailId = trailId;
+          renderComments();
+          commentMessage.focus();
+        } catch (error) {
+          const status =
+            error instanceof CommentsApiError ? error.status : undefined;
+          if (status === 401 || status === 403) {
+            setComposerStatus("You don't have access to comments.", "error");
+          } else if (status === 404) {
+            setComposerStatus("Comments aren't available yet.", "error");
+          } else {
+            setComposerStatus("Unable to post right now. Please retry.", "error");
+          }
+        } finally {
+          setPostingState(false);
+        }
+      };
+
+      const initComments = () => {
+        setDisplayName(getStoredValue("mzDisplayName"));
+        userId = getStoredValue("mzUserId");
+        if (!userId) {
+          userId = createUserId();
+          setStoredValue("mzUserId", userId);
+        }
+
+        updateCharCount();
+        setComposerStatus("");
+
+        bottomsheetTabButtons.forEach((button) => {
+          if (button.dataset.bottomsheetBound) return;
+          button.dataset.bottomsheetBound = "true";
+          button.addEventListener("click", () => {
+            setBottomsheetTab(button.dataset.bottomsheetTab);
+          });
+        });
+
+        commentsChangeNameBtn?.addEventListener("click", () => {
+          openJoinJourneyModal(true);
+        });
+
+        commentsRetryBtn?.addEventListener("click", () => {
+          loadComments({ force: true });
+        });
+
+        commentsFeed?.addEventListener("click", (event) => {
+          const target = event.target instanceof Element ? event.target : null;
+          if (!target) return;
+          const locateButton = target.closest("[data-comment-locate]");
+          if (locateButton instanceof HTMLElement) {
+            const lat = Number(locateButton.dataset.lat);
+            const lon = Number(locateButton.dataset.lon);
+            if (isValidNumber(lat) && isValidNumber(lon) && mapInstance) {
+              mapHasUserMoved = false;
+              mapInstance.setView([lat, lon], 12, { animate: true });
+              addLocateMarker(lat, lon);
+            }
+            return;
+          }
+          const snapshotButton = target.closest("[data-comment-snapshot]");
+          if (snapshotButton instanceof HTMLElement) {
+            const snapshotUrl = snapshotButton.dataset.snapshotUrl;
+            if (snapshotUrl) {
+              openSnapshotLightbox(snapshotUrl);
+            }
+          }
+        });
+
+        commentsForm?.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          await submitComment();
+        });
+
+        commentMessage?.addEventListener("input", () => {
+          updateCharCount();
+          if (commentMessage.value.length <= 140) {
+            setComposerStatus("");
+          }
+        });
+
+        joinJourneyForm?.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const nextName = joinDisplayNameInput?.value.trim() ?? "";
+          if (!nextName) {
+            showJoinNameError("Display name is required.");
+            return;
+          }
+          if (nextName.length > 32) {
+            showJoinNameError("Display name must be 32 characters or less.");
+            return;
+          }
+          setDisplayName(nextName);
+          setStoredValue("mzDisplayName", nextName);
+          closeJoinJourneyModal();
+          setComposerStatus("");
+          commentMessage?.focus();
+        });
+
+        joinCancelBtn?.addEventListener("click", () => {
+          const dismissible = joinJourneyModal?.dataset.dismissible === "true";
+          if (dismissible) {
+            closeJoinJourneyModal();
+          }
+        });
+
+        joinJourneyModal?.addEventListener("click", (event) => {
+          if (event.target !== joinJourneyModal) return;
+          const dismissible = joinJourneyModal.dataset.dismissible === "true";
+          if (dismissible) {
+            closeJoinJourneyModal();
+          }
+        });
+
+        snapshotLightboxClose?.addEventListener("click", () => {
+          closeSnapshotLightbox();
+        });
+
+        snapshotLightbox?.addEventListener("click", (event) => {
+          if (event.target === snapshotLightbox) {
+            closeSnapshotLightbox();
+          }
+        });
+
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape") {
+            closeSnapshotLightbox();
+            const dismissible = joinJourneyModal?.dataset.dismissible === "true";
+            if (dismissible) {
+              closeJoinJourneyModal();
+            }
+          }
+        });
+
+        setBottomsheetTab(activeBottomsheetTab);
+      };
+
       reconnectBtn?.addEventListener("click", async () => {
         await fetchLastSeen();
         loadStream();
@@ -672,6 +1210,7 @@ import MediaPanel from "../components/MediaPanel.astro";
 
       initMap();
       initTrailControls();
+      initComments();
       fetchLastSeen();
       fetchGps();
       loadStream();
