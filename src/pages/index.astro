@@ -125,6 +125,7 @@ import MediaPanel from "../components/MediaPanel.astro";
       const joinDisplayNameInput = document.getElementById("join-display-name");
       const joinNameError = document.getElementById("join-name-error");
       const joinCancelBtn = document.getElementById("join-cancel-btn");
+      const joinCloseBtn = document.getElementById("join-close-btn");
       const snapshotLightbox = document.getElementById("snapshot-lightbox");
       const snapshotLightboxImage = document.getElementById(
         "snapshot-lightbox-image"
@@ -353,6 +354,9 @@ import MediaPanel from "../components/MediaPanel.astro";
         joinJourneyModal.classList.add("flex");
         if (joinCancelBtn) {
           joinCancelBtn.classList.toggle("hidden", !dismissible);
+        }
+        if (joinCloseBtn) {
+          joinCloseBtn.classList.toggle("hidden", !dismissible);
         }
         if (joinDisplayNameInput) {
           joinDisplayNameInput.value = displayName;
@@ -1213,6 +1217,13 @@ import MediaPanel from "../components/MediaPanel.astro";
         });
 
         joinCancelBtn?.addEventListener("click", () => {
+          const dismissible = joinJourneyModal?.dataset.dismissible === "true";
+          if (dismissible) {
+            closeJoinJourneyModal();
+          }
+        });
+
+        joinCloseBtn?.addEventListener("click", () => {
           const dismissible = joinJourneyModal?.dataset.dismissible === "true";
           if (dismissible) {
             closeJoinJourneyModal();
