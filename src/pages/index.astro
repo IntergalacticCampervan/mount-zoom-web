@@ -104,6 +104,25 @@ import MediaPanel from "../components/MediaPanel.astro";
       const weatherDesc = document.getElementById("weather-desc");
       const weatherFeels = document.getElementById("weather-feels");
       const weatherAlt = document.getElementById("weather-alt");
+      const telemetryLat = document.getElementById("telemetry-lat");
+      const telemetryLon = document.getElementById("telemetry-lon");
+      const telemetryAlt = document.getElementById("telemetry-alt");
+      const telemetrySpeed = document.getElementById("telemetry-speed");
+      const telemetryHeading = document.getElementById("telemetry-heading");
+      const telemetryAccuracy = document.getElementById("telemetry-accuracy");
+      const telemetryTrailWindow = document.getElementById(
+        "telemetry-trail-window"
+      );
+      const telemetryTrailPoints = document.getElementById(
+        "telemetry-trail-points"
+      );
+      const telemetryDistance = document.getElementById("telemetry-distance");
+      const telemetryWeather = document.getElementById("telemetry-weather");
+      const telemetryFeels = document.getElementById("telemetry-feels");
+      const telemetryWeatherLocation = document.getElementById(
+        "telemetry-weather-location"
+      );
+      const telemetryUpdated = document.getElementById("telemetry-updated");
       const commentsDisplayName = document.getElementById("comments-display-name");
       const commentsAddCommentBtn = document.getElementById(
         "comments-add-comment-btn"
@@ -167,7 +186,7 @@ import MediaPanel from "../components/MediaPanel.astro";
       let trailRequestId = 0;
       let streamRetryDelay = 2000;
       let streamRetryTimer = null;
-      let activeBottomsheetTab = "status";
+      let activeBottomsheetTab = "comments";
       let commentsLoadedTrailId = "";
       let isCommentsLoading = false;
       let commentsState = [];
@@ -177,6 +196,8 @@ import MediaPanel from "../components/MediaPanel.astro";
       let locateMarkerTimer = null;
       let shouldOpenAddCommentAfterJoin = false;
       let activeEditCommentId = "";
+      let latestWeatherPayload = null;
+      let lastTrailPointCount = 0;
 
       const isValidNumber = (value) =>
         typeof value === "number" && Number.isFinite(value);
@@ -210,6 +231,98 @@ import MediaPanel from "../components/MediaPanel.astro";
       const updateTrailDistanceUI = (distanceKm) => {
         if (!trailDistance) return;
         trailDistance.textContent = `${distanceKm.toFixed(1)} km`;
+        if (telemetryDistance) {
+          telemetryDistance.textContent = `${distanceKm.toFixed(1)} km`;
+        }
+      };
+
+      const updateTelemetryUpdatedNow = () => {
+        if (!telemetryUpdated) return;
+        telemetryUpdated.textContent = new Intl.DateTimeFormat("en-NZ", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }).format(new Date());
+      };
+
+      const getFirstNumericValue = (source, keys) => {
+        for (const key of keys) {
+          const value = source?.[key];
+          if (isValidNumber(value)) return value;
+        }
+        return null;
+      };
+
+      const updateTelemetryUI = () => {
+        const gps = latestGps ?? lastSeenData;
+        if (telemetryLat) {
+          telemetryLat.textContent = isValidNumber(gps?.lat)
+            ? gps.lat.toFixed(5)
+            : "--";
+        }
+        if (telemetryLon) {
+          telemetryLon.textContent = isValidNumber(gps?.lon)
+            ? gps.lon.toFixed(5)
+            : "--";
+        }
+        if (telemetryAlt) {
+          telemetryAlt.textContent = isValidNumber(gps?.alt)
+            ? `${Math.round(gps.alt)} m`
+            : "--";
+        }
+        const speed = getFirstNumericValue(gps, [
+          "speed",
+          "spd",
+          "velocity",
+          "velocityKmh",
+          "speedKmh",
+        ]);
+        if (telemetrySpeed) {
+          telemetrySpeed.textContent = isValidNumber(speed)
+            ? `${speed.toFixed(1)} km/h`
+            : "--";
+        }
+        const heading = getFirstNumericValue(gps, [
+          "heading",
+          "hdg",
+          "course",
+          "track",
+        ]);
+        if (telemetryHeading) {
+          telemetryHeading.textContent = isValidNumber(heading)
+            ? `${Math.round(heading)}°`
+            : "--";
+        }
+        const accuracy = getFirstNumericValue(gps, ["accuracy", "acc"]);
+        if (telemetryAccuracy) {
+          telemetryAccuracy.textContent = isValidNumber(accuracy)
+            ? `${Math.round(accuracy)} m`
+            : "--";
+        }
+        if (telemetryTrailWindow) {
+          telemetryTrailWindow.textContent = trailWindow;
+        }
+        if (telemetryTrailPoints) {
+          telemetryTrailPoints.textContent = lastTrailPointCount
+            ? String(lastTrailPointCount)
+            : "--";
+        }
+        if (telemetryWeather) {
+          telemetryWeather.textContent =
+            typeof latestWeatherPayload?.main?.temp === "number"
+              ? `${Math.round(latestWeatherPayload.main.temp)}°C`
+              : "--";
+        }
+        if (telemetryFeels) {
+          telemetryFeels.textContent =
+            typeof latestWeatherPayload?.main?.feels_like === "number"
+              ? `${Math.round(latestWeatherPayload.main.feels_like)}°C`
+              : "--";
+        }
+        if (telemetryWeatherLocation) {
+          telemetryWeatherLocation.textContent = latestWeatherPayload?.name || "--";
+        }
+        updateTelemetryUpdatedNow();
       };
 
       class CommentsApiError extends Error {
@@ -588,14 +701,18 @@ import MediaPanel from "../components/MediaPanel.astro";
             "rounded-xl bg-slate-900/70 p-3 ring-1 ring-white/5";
 
           const header = document.createElement("div");
-          header.className = "mb-2 flex items-center justify-between gap-3";
+          header.className = "mb-2 flex items-center gap-3";
           const nameEl = document.createElement("p");
           nameEl.className = "text-sm font-semibold text-amber-100";
           nameEl.textContent = comment.displayName || "Guest";
+
+          const headerRight = document.createElement("div");
+          headerRight.className = "ml-auto flex items-center gap-2";
           const timeEl = document.createElement("p");
           timeEl.className = "text-xs text-slate-400";
           timeEl.textContent = formatCommentTime(comment.createdAt);
-          header.append(nameEl, timeEl);
+          headerRight.append(timeEl);
+          header.append(nameEl, headerRight);
 
           const messageEl = document.createElement("p");
           messageEl.className = "whitespace-pre-wrap text-sm text-slate-200";
@@ -641,20 +758,24 @@ import MediaPanel from "../components/MediaPanel.astro";
             const editBtn = document.createElement("button");
             editBtn.type = "button";
             editBtn.className =
-              "inline-flex items-center justify-center rounded-full bg-slate-800 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-200 ring-1 ring-white/10 transition hover:bg-slate-700";
+              "inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-800/70 text-slate-200/85 ring-1 ring-white/10 transition hover:bg-slate-700 hover:text-slate-100";
             editBtn.dataset.commentEdit = "true";
             editBtn.dataset.commentId = String(comment.id ?? "");
-            editBtn.textContent = "Edit";
+            editBtn.setAttribute("aria-label", "Edit comment");
+            editBtn.innerHTML =
+              '<svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
 
             const deleteBtn = document.createElement("button");
             deleteBtn.type = "button";
             deleteBtn.className =
-              "inline-flex items-center justify-center rounded-full bg-rose-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-200 ring-1 ring-rose-300/30 transition hover:bg-rose-500/20";
+              "inline-flex h-8 w-8 items-center justify-center rounded-full bg-rose-500/10 text-rose-200/75 ring-1 ring-rose-300/25 transition hover:bg-rose-500/20 hover:text-rose-100";
             deleteBtn.dataset.commentDelete = "true";
             deleteBtn.dataset.commentId = String(comment.id ?? "");
-            deleteBtn.textContent = "Delete";
+            deleteBtn.setAttribute("aria-label", "Delete comment");
+            deleteBtn.innerHTML =
+              '<svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
 
-            actions.append(editBtn, deleteBtn);
+            headerRight.append(editBtn, deleteBtn);
           }
 
           item.append(header, messageEl, actions);
@@ -812,11 +933,13 @@ import MediaPanel from "../components/MediaPanel.astro";
             refreshLatestViewPreview();
           }
         }
+        updateTelemetryUI();
         renderStatus();
       };
 
       const updateWeatherUI = (payload) => {
         if (!payload) return;
+        latestWeatherPayload = payload;
         const name = payload.name || "MountZoom";
         const temp =
           typeof payload.main?.temp === "number"
@@ -835,6 +958,7 @@ import MediaPanel from "../components/MediaPanel.astro";
               ? `Feels ${Math.round(payload.main.feels_like)}°C`
               : "";
         }
+        updateTelemetryUI();
       };
 
       const fetchWeather = async (lat, lon) => {
@@ -958,7 +1082,9 @@ import MediaPanel from "../components/MediaPanel.astro";
               (point) => isValidNumber(point.lat) && isValidNumber(point.lon)
             )
             .map((point) => [point.lat, point.lon]);
+          lastTrailPointCount = latlngs.length;
           updateTrailDistanceUI(getTrailDistanceKm(latlngs));
+          updateTelemetryUI();
           if (latlngs.length < 2) return;
           if (!trailLine) {
             trailLine = window.L.polyline(latlngs, {
@@ -1010,6 +1136,7 @@ import MediaPanel from "../components/MediaPanel.astro";
           if (weatherAlt && isValidNumber(data.alt)) {
             weatherAlt.textContent = `${Math.round(data.alt)}m ASL`;
           }
+          updateTelemetryUI();
           fetchWeather(data.lat, data.lon);
         } catch (error) {
           gpsHealthy = false;
@@ -1225,6 +1352,7 @@ import MediaPanel from "../components/MediaPanel.astro";
           }
         }
         updateTrailWindowUI();
+        updateTelemetryUI();
       };
 
       const initTrailControls = () => {
@@ -1256,6 +1384,7 @@ import MediaPanel from "../components/MediaPanel.astro";
             startTrailPolling();
           });
         });
+        updateTelemetryUI();
       };
 
       const submitComment = async () => {
