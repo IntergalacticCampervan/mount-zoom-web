@@ -223,6 +223,16 @@ import MediaPanel from "../components/MediaPanel.astro";
         return `${year}-${month}-${day}`;
       };
 
+      const getRecentNzTrailIds = (days = 7) => {
+        const ids = [];
+        for (let offset = 0; offset < days; offset += 1) {
+          const date = new Date();
+          date.setDate(date.getDate() - offset);
+          ids.push(getNzTrailId(date));
+        }
+        return ids;
+      };
+
       const parseCommentJsonOrThrow = async (response) => {
         const contentType = response.headers.get("content-type") ?? "";
         if (!contentType.includes("application/json")) {
@@ -530,8 +540,15 @@ import MediaPanel from "../components/MediaPanel.astro";
         isCommentsLoading = true;
         setCommentsView("loading");
         try {
-          const payload = await listComments(trailId, 50);
-          commentsState = payload
+          const trailIds = getRecentNzTrailIds(7);
+          const loaded = [];
+          for (const id of trailIds) {
+            const payload = await listComments(id, 50);
+            if (Array.isArray(payload) && payload.length) {
+              loaded.push(...payload);
+            }
+          }
+          commentsState = loaded
             .filter((item) => item && typeof item === "object")
             .sort(
               (a, b) =>
