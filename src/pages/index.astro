@@ -125,6 +125,13 @@ import MediaPanel from "../components/MediaPanel.astro";
       const commentsLatestView = document.getElementById("comments-latest-view");
       const addCommentModal = document.getElementById("add-comment-modal");
       const addCommentCloseBtn = document.getElementById("add-comment-close-btn");
+      const editCommentModal = document.getElementById("edit-comment-modal");
+      const editCommentCloseBtn = document.getElementById("edit-comment-close-btn");
+      const editCommentForm = document.getElementById("edit-comment-form");
+      const editCommentMessage = document.getElementById("edit-comment-message");
+      const editCommentSaveBtn = document.getElementById("edit-comment-save-btn");
+      const editCommentStatus = document.getElementById("edit-comment-status");
+      const editCommentCharCount = document.getElementById("edit-comment-char-count");
       const joinJourneyModal = document.getElementById("join-journey-modal");
       const joinJourneyForm = document.getElementById("join-journey-form");
       const joinDisplayNameInput = document.getElementById("join-display-name");
@@ -169,6 +176,7 @@ import MediaPanel from "../components/MediaPanel.astro";
       let locateMarker = null;
       let locateMarkerTimer = null;
       let shouldOpenAddCommentAfterJoin = false;
+      let activeEditCommentId = "";
 
       const isValidNumber = (value) =>
         typeof value === "number" && Number.isFinite(value);
@@ -273,6 +281,35 @@ import MediaPanel from "../components/MediaPanel.astro";
         return parseCommentJsonOrThrow(response);
       };
 
+      const updateComment = async (commentId, payload) => {
+        const response = await fetch(
+          `${COMMENTS_ENDPOINT}/${encodeURIComponent(commentId)}`,
+          {
+            method: "PATCH",
+            headers: {
+              "content-type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          }
+        );
+        if (!response.ok) {
+          throw new CommentsApiError("Failed to update comment", response.status);
+        }
+        return parseCommentJsonOrThrow(response);
+      };
+
+      const deleteComment = async (commentId) => {
+        const response = await fetch(
+          `${COMMENTS_ENDPOINT}/${encodeURIComponent(commentId)}`,
+          {
+            method: "DELETE",
+          }
+        );
+        if (!response.ok) {
+          throw new CommentsApiError("Failed to delete comment", response.status);
+        }
+      };
+
       const getStoredValue = (key) => {
         try {
           return localStorage.getItem(key) ?? "";
@@ -314,6 +351,7 @@ import MediaPanel from "../components/MediaPanel.astro";
           return;
         }
         closeAddCommentModal();
+        closeEditCommentModal();
       };
 
       const setComposerStatus = (message = "", tone = "muted") => {
@@ -401,6 +439,67 @@ import MediaPanel from "../components/MediaPanel.astro";
         if (!addCommentModal) return;
         addCommentModal.classList.add("hidden");
         addCommentModal.classList.remove("flex");
+      };
+
+      const setEditStatus = (message = "", tone = "muted") => {
+        if (!editCommentStatus) return;
+        editCommentStatus.textContent = message;
+        editCommentStatus.classList.remove(
+          "text-slate-400",
+          "text-amber-200",
+          "text-emerald-300"
+        );
+        if (tone === "error") {
+          editCommentStatus.classList.add("text-amber-200");
+          return;
+        }
+        if (tone === "success") {
+          editCommentStatus.classList.add("text-emerald-300");
+          return;
+        }
+        editCommentStatus.classList.add("text-slate-400");
+      };
+
+      const updateEditCharCount = () => {
+        if (!editCommentCharCount || !editCommentMessage) return;
+        editCommentCharCount.textContent = `${editCommentMessage.value.length}/140`;
+      };
+
+      const setEditSavingState = (isSaving) => {
+        if (editCommentSaveBtn) {
+          editCommentSaveBtn.disabled = isSaving;
+          editCommentSaveBtn.textContent = isSaving
+            ? "Saving..."
+            : "Save changes";
+        }
+        if (editCommentMessage) {
+          editCommentMessage.disabled = isSaving;
+        }
+      };
+
+      const openEditCommentModal = (comment) => {
+        if (!editCommentModal || !editCommentMessage) return;
+        activeEditCommentId = typeof comment.id === "string" ? comment.id : "";
+        editCommentMessage.value = comment.message ?? "";
+        updateEditCharCount();
+        setEditStatus("");
+        editCommentModal.classList.remove("hidden");
+        editCommentModal.classList.add("flex");
+        setTimeout(() => {
+          editCommentMessage.focus();
+          editCommentMessage.setSelectionRange(
+            editCommentMessage.value.length,
+            editCommentMessage.value.length
+          );
+        }, 0);
+      };
+
+      const closeEditCommentModal = () => {
+        if (!editCommentModal) return;
+        editCommentModal.classList.add("hidden");
+        editCommentModal.classList.remove("flex");
+        activeEditCommentId = "";
+        setEditStatus("");
       };
 
       const openSnapshotLightbox = (snapshotUrl) => {
@@ -534,6 +633,26 @@ import MediaPanel from "../components/MediaPanel.astro";
             actions.append(snapshotBtn);
           }
 
+          if (comment.userId && userId && comment.userId === userId) {
+            const editBtn = document.createElement("button");
+            editBtn.type = "button";
+            editBtn.className =
+              "inline-flex items-center justify-center rounded-full bg-slate-800 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-200 ring-1 ring-white/10 transition hover:bg-slate-700";
+            editBtn.dataset.commentEdit = "true";
+            editBtn.dataset.commentId = String(comment.id ?? "");
+            editBtn.textContent = "Edit";
+
+            const deleteBtn = document.createElement("button");
+            deleteBtn.type = "button";
+            deleteBtn.className =
+              "inline-flex items-center justify-center rounded-full bg-rose-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-200 ring-1 ring-rose-300/30 transition hover:bg-rose-500/20";
+            deleteBtn.dataset.commentDelete = "true";
+            deleteBtn.dataset.commentId = String(comment.id ?? "");
+            deleteBtn.textContent = "Delete";
+
+            actions.append(editBtn, deleteBtn);
+          }
+
           item.append(header, messageEl, actions);
           fragment.append(item);
         });
@@ -550,6 +669,16 @@ import MediaPanel from "../components/MediaPanel.astro";
           return "You don't have access to comments.";
         }
         return "Unable to load comments right now. Please retry.";
+      };
+
+      const resolveCommentMutationErrorMessage = (status, fallback) => {
+        if (status === 404 || status === 500 || status === 502 || status === 503) {
+          return "Comments aren't available yet.";
+        }
+        if (status === 401 || status === 403) {
+          return "You don't have access to comments.";
+        }
+        return fallback;
       };
 
       const loadComments = async ({ force = false } = {}) => {
@@ -1164,20 +1293,72 @@ import MediaPanel from "../components/MediaPanel.astro";
         } catch (error) {
           const status =
             error instanceof CommentsApiError ? error.status : undefined;
-          if (status === 401 || status === 403) {
-            setComposerStatus("You don't have access to comments.", "error");
-          } else if (
-            status === 404 ||
-            status === 500 ||
-            status === 502 ||
-            status === 503
-          ) {
-            setComposerStatus("Comments aren't available yet.", "error");
-          } else {
-            setComposerStatus("Unable to post right now. Please retry.", "error");
-          }
+          setComposerStatus(
+            resolveCommentMutationErrorMessage(
+              status,
+              "Unable to post right now. Please retry."
+            ),
+            "error"
+          );
         } finally {
           setPostingState(false);
+        }
+      };
+
+      const submitEditComment = async () => {
+        if (!activeEditCommentId || !editCommentMessage) return;
+        const message = editCommentMessage.value.trim();
+        if (!message) {
+          setEditStatus("Comment cannot be empty.", "error");
+          return;
+        }
+        setEditSavingState(true);
+        setEditStatus("");
+        try {
+          const updated = await updateComment(activeEditCommentId, { message });
+          commentsState = commentsState.map((comment) =>
+            String(comment.id ?? "") === activeEditCommentId
+              ? {
+                  ...comment,
+                  ...updated,
+                  message: updated?.message ?? message,
+                }
+              : comment
+          );
+          renderComments();
+          closeEditCommentModal();
+        } catch (error) {
+          const status =
+            error instanceof CommentsApiError ? error.status : undefined;
+          setEditStatus(
+            resolveCommentMutationErrorMessage(
+              status,
+              "Unable to save changes right now. Please retry."
+            ),
+            "error"
+          );
+        } finally {
+          setEditSavingState(false);
+        }
+      };
+
+      const deleteCommentById = async (commentId) => {
+        try {
+          await deleteComment(commentId);
+          commentsState = commentsState.filter(
+            (comment) => String(comment.id ?? "") !== commentId
+          );
+          renderComments();
+        } catch (error) {
+          const status =
+            error instanceof CommentsApiError ? error.status : undefined;
+          setComposerStatus(
+            resolveCommentMutationErrorMessage(
+              status,
+              "Unable to delete comment right now. Please retry."
+            ),
+            "error"
+          );
         }
       };
 
@@ -1221,6 +1402,26 @@ import MediaPanel from "../components/MediaPanel.astro";
         commentsFeed?.addEventListener("click", (event) => {
           const target = event.target instanceof Element ? event.target : null;
           if (!target) return;
+          const editButton = target.closest("[data-comment-edit]");
+          if (editButton instanceof HTMLElement) {
+            const commentId = editButton.dataset.commentId ?? "";
+            const comment = commentsState.find(
+              (item) => String(item.id ?? "") === commentId
+            );
+            if (comment) {
+              openEditCommentModal(comment);
+            }
+            return;
+          }
+          const deleteButton = target.closest("[data-comment-delete]");
+          if (deleteButton instanceof HTMLElement) {
+            const commentId = deleteButton.dataset.commentId ?? "";
+            if (!commentId) return;
+            if (window.confirm("Delete this comment?")) {
+              deleteCommentById(commentId);
+            }
+            return;
+          }
           const locateButton = target.closest("[data-comment-locate]");
           if (locateButton instanceof HTMLElement) {
             const lat = Number(locateButton.dataset.lat);
@@ -1309,6 +1510,26 @@ import MediaPanel from "../components/MediaPanel.astro";
           }
         });
 
+        editCommentCloseBtn?.addEventListener("click", () => {
+          closeEditCommentModal();
+        });
+
+        editCommentModal?.addEventListener("click", (event) => {
+          if (event.target === editCommentModal) {
+            closeEditCommentModal();
+          }
+        });
+
+        editCommentForm?.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          await submitEditComment();
+        });
+
+        editCommentMessage?.addEventListener("input", () => {
+          updateEditCharCount();
+          setEditStatus("");
+        });
+
         snapshotLightboxClose?.addEventListener("click", () => {
           closeSnapshotLightbox();
         });
@@ -1323,6 +1544,7 @@ import MediaPanel from "../components/MediaPanel.astro";
           if (event.key === "Escape") {
             closeSnapshotLightbox();
             closeAddCommentModal();
+            closeEditCommentModal();
             const dismissible = joinJourneyModal?.dataset.dismissible === "true";
             if (dismissible) {
               shouldOpenAddCommentAfterJoin = false;

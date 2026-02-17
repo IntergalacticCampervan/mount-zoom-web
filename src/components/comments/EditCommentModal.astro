@@ -1,0 +1,46 @@
+<div
+  id="edit-comment-modal"
+  class="fixed inset-0 z-[83] hidden items-center justify-center bg-slate-950/80 px-4"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="edit-comment-title"
+>
+  <div class="relative w-full max-w-xl rounded-2xl bg-slate-900 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.5)] ring-1 ring-amber-200/20">
+    <div class="mb-3 flex items-center justify-between gap-3">
+      <h2 id="edit-comment-title" class="text-lg font-semibold text-amber-100">
+        Edit comment
+      </h2>
+      <button
+        id="edit-comment-close-btn"
+        type="button"
+        class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-200 transition hover:bg-slate-700"
+        aria-label="Close edit comment dialog"
+      >
+        ×
+      </button>
+    </div>
+
+    <form id="edit-comment-form" class="space-y-3">
+      <textarea
+        id="edit-comment-message"
+        name="message"
+        rows="4"
+        maxlength="140"
+        class="w-full resize-none rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-amber-200/50 focus:ring-2 focus:ring-amber-200/20"
+      ></textarea>
+      <div class="flex items-center justify-between gap-3">
+        <p id="edit-comment-status" class="min-h-[1.25rem] text-xs text-slate-400"></p>
+        <div class="flex items-center gap-3">
+          <span id="edit-comment-char-count" class="text-xs text-slate-400">0/140</span>
+          <button
+            id="edit-comment-save-btn"
+            type="submit"
+            class="inline-flex items-center justify-center rounded-full bg-amber-300/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-amber-200 ring-1 ring-amber-200/30 transition hover:bg-amber-300/20 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Save changes
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

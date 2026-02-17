@@ -53,6 +53,12 @@ The Journey Comments UI expects these backend endpoints:
   - JSON body:
     - `userId`, `displayName`, `message`, `lat`, `lon`, `trailId`
   - Returns the created comment object
+- `PATCH /api/comments/:id`
+  - JSON body:
+    - `message`
+  - Returns the updated comment object
+- `DELETE /api/comments/:id`
+  - Deletes a comment
 
 Existing fallback endpoint reused by the UI:
 
