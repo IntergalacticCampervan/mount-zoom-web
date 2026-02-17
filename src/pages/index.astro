@@ -123,6 +123,8 @@ import MediaPanel from "../components/MediaPanel.astro";
       const commentCharCount = document.getElementById("comment-char-count");
       const commentFormStatus = document.getElementById("comment-form-status");
       const commentsLatestView = document.getElementById("comments-latest-view");
+      const addCommentModal = document.getElementById("add-comment-modal");
+      const addCommentCloseBtn = document.getElementById("add-comment-close-btn");
       const joinJourneyModal = document.getElementById("join-journey-modal");
       const joinJourneyForm = document.getElementById("join-journey-form");
       const joinDisplayNameInput = document.getElementById("join-display-name");
@@ -166,6 +168,7 @@ import MediaPanel from "../components/MediaPanel.astro";
       let userId = "";
       let locateMarker = null;
       let locateMarkerTimer = null;
+      let shouldOpenAddCommentAfterJoin = false;
 
       const isValidNumber = (value) =>
         typeof value === "number" && Number.isFinite(value);
@@ -308,7 +311,9 @@ import MediaPanel from "../components/MediaPanel.astro";
         if (activeBottomsheetTab === "comments") {
           refreshLatestViewPreview();
           loadComments();
+          return;
         }
+        closeAddCommentModal();
       };
 
       const setComposerStatus = (message = "", tone = "muted") => {
@@ -380,6 +385,22 @@ import MediaPanel from "../components/MediaPanel.astro";
         joinJourneyModal.classList.add("hidden");
         joinJourneyModal.classList.remove("flex");
         showJoinNameError("");
+      };
+
+      const openAddCommentModal = () => {
+        if (!addCommentModal) return;
+        refreshLatestViewPreview();
+        addCommentModal.classList.remove("hidden");
+        addCommentModal.classList.add("flex");
+        setTimeout(() => {
+          commentMessage?.focus();
+        }, 0);
+      };
+
+      const closeAddCommentModal = () => {
+        if (!addCommentModal) return;
+        addCommentModal.classList.add("hidden");
+        addCommentModal.classList.remove("flex");
       };
 
       const openSnapshotLightbox = (snapshotUrl) => {
@@ -1139,7 +1160,7 @@ import MediaPanel from "../components/MediaPanel.astro";
           );
           commentsLoadedTrailId = trailId;
           renderComments();
-          commentMessage.focus();
+          closeAddCommentModal();
         } catch (error) {
           const status =
             error instanceof CommentsApiError ? error.status : undefined;
@@ -1185,10 +1206,12 @@ import MediaPanel from "../components/MediaPanel.astro";
 
         commentsAddCommentBtn?.addEventListener("click", () => {
           if (!displayName) {
+            shouldOpenAddCommentAfterJoin = true;
             openJoinJourneyModal(true);
             return;
           }
-          commentMessage?.focus();
+          shouldOpenAddCommentAfterJoin = false;
+          openAddCommentModal();
         });
 
         commentsRetryBtn?.addEventListener("click", () => {
@@ -1245,12 +1268,16 @@ import MediaPanel from "../components/MediaPanel.astro";
           setStoredValue("mzDisplayName", nextName);
           closeJoinJourneyModal();
           setComposerStatus("");
-          commentMessage?.focus();
+          if (shouldOpenAddCommentAfterJoin) {
+            shouldOpenAddCommentAfterJoin = false;
+            openAddCommentModal();
+          }
         });
 
         joinCancelBtn?.addEventListener("click", () => {
           const dismissible = joinJourneyModal?.dataset.dismissible === "true";
           if (dismissible) {
+            shouldOpenAddCommentAfterJoin = false;
             closeJoinJourneyModal();
           }
         });
@@ -1258,6 +1285,7 @@ import MediaPanel from "../components/MediaPanel.astro";
         joinCloseBtn?.addEventListener("click", () => {
           const dismissible = joinJourneyModal?.dataset.dismissible === "true";
           if (dismissible) {
+            shouldOpenAddCommentAfterJoin = false;
             closeJoinJourneyModal();
           }
         });
@@ -1266,7 +1294,18 @@ import MediaPanel from "../components/MediaPanel.astro";
           if (event.target !== joinJourneyModal) return;
           const dismissible = joinJourneyModal.dataset.dismissible === "true";
           if (dismissible) {
+            shouldOpenAddCommentAfterJoin = false;
             closeJoinJourneyModal();
+          }
+        });
+
+        addCommentCloseBtn?.addEventListener("click", () => {
+          closeAddCommentModal();
+        });
+
+        addCommentModal?.addEventListener("click", (event) => {
+          if (event.target === addCommentModal) {
+            closeAddCommentModal();
           }
         });
 
@@ -1283,8 +1322,10 @@ import MediaPanel from "../components/MediaPanel.astro";
         document.addEventListener("keydown", (event) => {
           if (event.key === "Escape") {
             closeSnapshotLightbox();
+            closeAddCommentModal();
             const dismissible = joinJourneyModal?.dataset.dismissible === "true";
             if (dismissible) {
+              shouldOpenAddCommentAfterJoin = false;
               closeJoinJourneyModal();
             }
           }
