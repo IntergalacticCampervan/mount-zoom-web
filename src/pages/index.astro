@@ -37,15 +37,9 @@ import MediaPanel from "../components/MediaPanel.astro";
       crossorigin=""
     ></script>
     <script type="module">
-      import {
-        CommentsApiError,
-        createComment,
-        getNzTrailId,
-        listComments,
-      } from "../lib/commentsApi.js";
-
       const LAST_SEEN_ENDPOINT = "/api/last-seen";
       const GPS_ENDPOINT = "/gps/location";
+      const COMMENTS_ENDPOINT = "/api/comments";
       const OPENWEATHER_API_KEY = "299fbf95adcf65d403987fbec5b80a23";
 
       const POLL_INTERVAL_MS = 30000;
@@ -201,6 +195,65 @@ import MediaPanel from "../components/MediaPanel.astro";
       const updateTrailDistanceUI = (distanceKm) => {
         if (!trailDistance) return;
         trailDistance.textContent = `${distanceKm.toFixed(1)} km`;
+      };
+
+      class CommentsApiError extends Error {
+        constructor(message, status = 0) {
+          super(message);
+          this.name = "CommentsApiError";
+          this.status = status;
+        }
+      }
+
+      const getNzTrailId = (date = new Date()) => {
+        const formatter = new Intl.DateTimeFormat("en-NZ", {
+          timeZone: "Pacific/Auckland",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        });
+        const parts = formatter.formatToParts(date);
+        const year = parts.find((part) => part.type === "year")?.value ?? "0000";
+        const month = parts.find((part) => part.type === "month")?.value ?? "01";
+        const day = parts.find((part) => part.type === "day")?.value ?? "01";
+        return `${year}-${month}-${day}`;
+      };
+
+      const parseCommentJsonOrThrow = async (response) => {
+        const contentType = response.headers.get("content-type") ?? "";
+        if (!contentType.includes("application/json")) {
+          throw new CommentsApiError("Unexpected response", response.status);
+        }
+        return response.json();
+      };
+
+      const listComments = async (trailId, limit = 50) => {
+        const url = new URL(COMMENTS_ENDPOINT, window.location.origin);
+        url.searchParams.set("trailId", trailId);
+        url.searchParams.set("limit", String(limit));
+        const response = await fetch(url.toString(), {
+          method: "GET",
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          throw new CommentsApiError("Failed to load comments", response.status);
+        }
+        const payload = await parseCommentJsonOrThrow(response);
+        return Array.isArray(payload) ? payload : [];
+      };
+
+      const createComment = async (payload) => {
+        const response = await fetch(COMMENTS_ENDPOINT, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+          throw new CommentsApiError("Failed to create comment", response.status);
+        }
+        return parseCommentJsonOrThrow(response);
       };
 
       const getStoredValue = (key) => {
